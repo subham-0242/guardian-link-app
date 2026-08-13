@@ -287,6 +287,26 @@ class EmergencyRepository(context: Context) {
         FirebaseRemoteManager.addMemoryIncident(incident)
     }
 
+    suspend fun uploadAndAttachCloudinaryMedia(
+        roomId: String,
+        floor: Int,
+        mediaBytes: ByteArray,
+        mediaType: String,
+        durationSeconds: Double
+    ): Result<String> {
+        val uploadResult = com.example.data.remote.CloudinaryNetworkClient.uploadMediaBytes(
+            bytes = mediaBytes,
+            mediaType = mediaType,
+            durationSeconds = durationSeconds
+        )
+
+        return uploadResult.mapCatching { response ->
+            val secureUrl = response.secureUrl ?: response.url ?: throw IllegalStateException("Cloudinary upload URL missing")
+            attachMedia(roomId, floor, secureUrl, mediaType)
+            secureUrl
+        }
+    }
+
     // --- Chat & Translation ---
     fun getChatMessagesForRoom(roomId: String): Flow<List<ChatMessage>> {
         return combine(FirebaseRemoteManager.memoryChatMessages) { msgs ->
