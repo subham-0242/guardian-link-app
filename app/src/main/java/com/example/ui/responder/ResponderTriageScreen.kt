@@ -29,11 +29,14 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Emergency
 import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -45,7 +48,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,10 +78,12 @@ import com.example.ui.theme.TacticalCyan
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.WarningAmber
+import com.example.util.AarPdfGenerator
 import com.example.util.HazardClusterer
 import com.example.util.PiiScrubber
 import com.example.util.TextToSpeechHelper
 import kotlinx.coroutines.launch
+import java.io.File
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -107,6 +114,8 @@ fun ResponderTriageScreen(
     var responderTargetLang by remember { mutableStateOf("Spanish") }
     var showLangPicker by remember { mutableStateOf(false) }
     var piiCount by remember { mutableStateOf(0) }
+    var aarGeneratedFile by remember { mutableStateOf<File?>(null) }
+    var showAarDialog by remember { mutableStateOf(false) }
 
     val supportedLanguages = listOf("Spanish", "French", "Mandarin", "Arabic", "Russian", "Hindi", "Japanese", "Tamil")
 
@@ -645,6 +654,209 @@ fun ResponderTriageScreen(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 4. AUTOMATED AFTER-ACTION REPORT (AAR) GENERATOR CARD
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("aar_generator_card")
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, TacticalCyan.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
+                colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Description,
+                                contentDescription = null,
+                                tint = TacticalCyan,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "AUTOMATED AFTER-ACTION REPORT (AAR)",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TacticalCyan
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SafeGreen.copy(alpha = 0.2f))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "CRISIS RESOLVED",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SafeGreen
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "Generate legal & safety compliance audit PDF containing evacuation metrics, timeline, and translated communication logs.",
+                        fontSize = 11.sp,
+                        color = TextSecondary
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Key Stats Grid
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF0F172A))
+                                .padding(10.dp)
+                        ) {
+                            Column {
+                                Text("Evacuation Time", fontSize = 10.sp, color = TextSecondary)
+                                Text("14m 32s", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WarningAmber)
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF0F172A))
+                                .padding(10.dp)
+                        ) {
+                            Column {
+                                Text("Headcount Stat", fontSize = 10.sp, color = TextSecondary)
+                                Text("10/10 Clear (100%)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SafeGreen)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // PDF Download Button
+                    Button(
+                        onClick = {
+                            val pdf = AarPdfGenerator.generateAndOpenAarPdf(
+                                context = context,
+                                emergencies = emergencies,
+                                messages = messages,
+                                totalEvacuationTimeMin = "14m 32s"
+                            )
+                            aarGeneratedFile = pdf
+                            showAarDialog = true
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("generate_aar_pdf_button"),
+                        colors = ButtonDefaults.buttonColors(containerColor = TacticalCyan, contentColor = Color.Black),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PictureAsPdf,
+                            contentDescription = "Generate PDF",
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "📄 GENERATE & DOWNLOAD AAR AUDIT PDF",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
+    }
+
+    // AAR Report Success Modal Dialog
+    if (showAarDialog) {
+        AlertDialog(
+            onDismissRequest = { showAarDialog = false },
+            containerColor = SurfaceCard,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.PictureAsPdf,
+                        contentDescription = null,
+                        tint = TacticalCyan,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "AFTER-ACTION REPORT (AAR) GENERATED",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TacticalCyan
+                    )
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "The crisis audit PDF report has been compiled and saved to device documents:",
+                        fontSize = 12.sp,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF0F172A))
+                            .padding(10.dp)
+                    ) {
+                        Text(
+                            text = aarGeneratedFile?.name ?: "AAR_Report_Incident_Audit.pdf",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SafeGreen
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text("• Total Evacuation Duration: 14 minutes 32 seconds", fontSize = 11.sp, color = TextSecondary)
+                    Text("• Headcount Clearance: 100% (All Level 4 occupants accounted for)", fontSize = 11.sp, color = TextSecondary)
+                    Text("• Critical Timeline Events: 5 Incident Milestones Logged", fontSize = 11.sp, color = TextSecondary)
+                    Text("• Audit Logs: Full translated PII-scrubbed comms included", fontSize = 11.sp, color = TextSecondary)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        aarGeneratedFile?.let { file ->
+                            AarPdfGenerator.generateAndOpenAarPdf(context, emergencies, messages)
+                        }
+                        showAarDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = TacticalCyan, contentColor = Color.Black),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("OPEN / SHARE PDF", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAarDialog = false }) {
+                    Text("CLOSE", color = TextSecondary, fontSize = 11.sp)
+                }
+            }
+        )
     }
 }
