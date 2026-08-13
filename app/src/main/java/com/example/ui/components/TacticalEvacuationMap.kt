@@ -50,6 +50,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import com.example.data.model.FloorNode
 import com.example.ui.theme.CrisisRed
 import com.example.ui.theme.DarkCanvas
@@ -130,6 +132,16 @@ fun TacticalEvacuationMap(
                     .clip(RoundedCornerShape(12.dp))
                     .background(DarkCanvas)
             ) {
+                if (!floorPlanUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = floorPlanUrl,
+                        contentDescription = "Custom Floor Plan Map",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        alpha = 0.6f
+                    )
+                }
+
                 Canvas(
                     modifier = Modifier
                         .fillMaxSize()

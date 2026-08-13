@@ -1,5 +1,8 @@
 package com.example.ui.staff
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,7 +29,9 @@ import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Warning
@@ -57,11 +62,13 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.data.model.FloorNode
 import com.example.data.repository.EmergencyRepository
 import com.example.ui.theme.CrisisRed
@@ -87,13 +94,28 @@ fun StaffCommandScreen(
     val scope = rememberCoroutineScope()
 
     val dbNodes by repository.getFloorNodes(4).collectAsState(initial = emptyList())
+    val dbFloorPlan by repository.getFloorPlan(4).collectAsState(initial = null)
     val broadcasts by repository.getAllBroadcasts().collectAsState(initial = emptyList())
     val dangerZones by repository.getActiveDangerZones().collectAsState(initial = emptyList())
 
-    // Node plotting state
+    // Node plotting & status state
+    var statusMessage by remember { mutableStateOf("") }
     var selectedNodeType by remember { mutableStateOf("walkable") } // "walkable" (cyan) or "portal" (orange)
     var plottedNodes = remember { mutableStateListOf<FloorNode>() }
-    var statusMessage by remember { mutableStateOf("") }
+
+    // Custom Floor Map State
+    var customMapUrlInput by remember { mutableStateOf("") }
+    val customMapPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            customMapUrlInput = it.toString()
+            scope.launch {
+                repository.saveFloorPlan(4, it.toString())
+                statusMessage = "Custom Map Image uploaded & published to all dashboards!"
+            }
+        }
+    }
 
     // Broadcast state
     var broadcastMsgInput by remember { mutableStateOf("") }
@@ -237,6 +259,200 @@ fun StaffCommandScreen(
                 }
             }
 
+            // 1.5 Custom Map Image Upload Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("custom_map_upload_card")
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, TacticalCyan.copy(alpha = 0.5f), RoundedCornerShape(16.dp)),
+                colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudUpload,
+                            contentDescription = null,
+                            tint = TacticalCyan,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "CUSTOM MAP IMAGE MANAGER",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TacticalCyan
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Upload custom floor plan images or blueprints for Level 4. Published maps immediately sync to Guest and First Responder tactical displays.",
+                        fontSize = 11.sp,
+                        color = TextSecondary
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Preset Architectural Blueprints
+                    Text(
+                        text = "SELECT BLUEPRINT PRESET:",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    val presets = listOf(
+                        "CAD Tactical Grid" to "https://images.unsplash.com/photo-1524813686514-a57563d77965?auto=format&fit=crop&w=800&q=80",
+                        "Architectural Floor" to "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80",
+                        "Emergency Plan" to "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=800&q=80"
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        presets.forEach { (label, url) ->
+                            val isSelected = customMapUrlInput == url || (customMapUrlInput.isEmpty() && dbFloorPlan?.imageUrl == url)
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) TacticalCyan else GlassSurface)
+                                    .border(1.dp, TacticalCyan.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        customMapUrlInput = url
+                                        scope.launch {
+                                            repository.saveFloorPlan(4, url)
+                                            statusMessage = "Published preset map: $label"
+                                        }
+                                    }
+                                    .padding(vertical = 8.dp, horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color.Black else TextPrimary
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Select from device or clear map
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                customMapPickerLauncher.launch("image/*")
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("select_map_image_button"),
+                            colors = ButtonDefaults.buttonColors(containerColor = TacticalCyan, contentColor = Color.Black),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("PICK IMAGE FILE", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                customMapUrlInput = ""
+                                scope.launch {
+                                    repository.saveFloorPlan(4, "")
+                                    statusMessage = "Reset to default vector map!"
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("clear_custom_map_button"),
+                            colors = ButtonDefaults.buttonColors(containerColor = CrisisRed.copy(alpha = 0.2f), contentColor = CrisisRed),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("CLEAR MAP", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Map URL Manual Entry Field
+                    OutlinedTextField(
+                        value = customMapUrlInput,
+                        onValueChange = { customMapUrlInput = it },
+                        placeholder = { Text("Or enter custom image URL / path...", fontSize = 11.sp, color = TextSecondary) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("custom_map_url_input"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = TacticalCyan,
+                            unfocusedBorderColor = GlassBorder,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Button(
+                        onClick = {
+                            if (customMapUrlInput.isNotBlank()) {
+                                scope.launch {
+                                    repository.saveFloorPlan(4, customMapUrlInput)
+                                    statusMessage = "Published custom floor map URL!"
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("publish_map_url_button"),
+                        colors = ButtonDefaults.buttonColors(containerColor = SafeGreen, contentColor = Color.White),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("PUBLISH MAP URL TO MESH", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    // Active Map Preview Box
+                    val activeMapPreview = if (customMapUrlInput.isNotBlank()) customMapUrlInput else dbFloorPlan?.imageUrl
+                    if (!activeMapPreview.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("ACTIVE MAP PREVIEW:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SafeGreen)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .border(1.dp, SafeGreen.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                        ) {
+                            AsyncImage(
+                                model = activeMapPreview,
+                                contentDescription = "Active Custom Map Preview",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // 2. Interactive Floor Node Plotter
@@ -327,6 +543,7 @@ fun StaffCommandScreen(
 
                     // Plotter Canvas
                     val activeNodesList = if (plottedNodes.isNotEmpty()) plottedNodes else dbNodes
+                    val currentMapUrl = if (customMapUrlInput.isNotBlank()) customMapUrlInput else dbFloorPlan?.imageUrl
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -334,6 +551,16 @@ fun StaffCommandScreen(
                             .clip(RoundedCornerShape(12.dp))
                             .background(DarkCanvas)
                     ) {
+                        if (!currentMapUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = currentMapUrl,
+                                contentDescription = "Plotter Map Overlay",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                                alpha = 0.5f
+                            )
+                        }
+
                         Canvas(
                             modifier = Modifier
                                 .fillMaxSize()

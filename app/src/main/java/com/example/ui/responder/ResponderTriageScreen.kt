@@ -60,6 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.repository.EmergencyRepository
+import com.example.ui.components.TacticalEvacuationMap
 import com.example.ui.theme.CrisisRed
 import com.example.ui.theme.DarkCanvas
 import com.example.ui.theme.GlassBorder
@@ -86,6 +87,8 @@ fun ResponderTriageScreen(
 
     val emergencies by repository.getAllActiveEmergencies().collectAsState(initial = emptyList())
     val incidents by repository.getAllIncidents().collectAsState(initial = emptyList())
+    val nodes by repository.getFloorNodes(4).collectAsState(initial = emptyList())
+    val floorPlan by repository.getFloorPlan(4).collectAsState(initial = null)
 
     var selectedRoomId by remember { mutableStateOf("402") }
     val messages by repository.getChatMessagesForRoom(selectedRoomId).collectAsState(initial = emptyList())
@@ -271,6 +274,16 @@ fun ResponderTriageScreen(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Tactical Floor Evacuation & Custom Map for Responders
+            TacticalEvacuationMap(
+                roomId = selectedRoomId,
+                floor = 4,
+                nodes = nodes,
+                floorPlanUrl = floorPlan?.imageUrl
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 

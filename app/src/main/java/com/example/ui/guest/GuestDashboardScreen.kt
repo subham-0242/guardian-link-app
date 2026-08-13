@@ -79,6 +79,7 @@ fun GuestDashboardScreen(
     val broadcasts by repository.getAllBroadcasts().collectAsState(initial = emptyList())
     val messages by repository.getChatMessagesForRoom(roomId).collectAsState(initial = emptyList())
     val nodes by repository.getFloorNodes(4).collectAsState(initial = emptyList())
+    val floorPlan by repository.getFloorPlan(4).collectAsState(initial = null)
 
     var isSosActive by remember { mutableStateOf(false) }
     var selectedLanguage by remember { mutableStateOf("Spanish") }
@@ -219,7 +220,8 @@ fun GuestDashboardScreen(
             TacticalEvacuationMap(
                 roomId = roomId,
                 floor = 4,
-                nodes = nodes
+                nodes = nodes,
+                floorPlanUrl = floorPlan?.imageUrl
             )
 
             Spacer(modifier = Modifier.height(14.dp))
