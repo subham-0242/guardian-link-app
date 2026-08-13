@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Shield Outline and Body -->
+    <path
+        android:fillColor="#06B6D4"
+        android:pathData="M54,24 L78,34 C78,60 66,76 54,84 C42,76 30,60 30,34 Z" />
+    <path
+        android:fillColor="#EF4444"
+        android:pathData="M54,29 L73,37 C73,58 63,71 54,78 C45,71 35,58 35,37 Z" />
+    <!-- Pulse Line Cross -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,42 H58 V50 H66 V58 H58 V66 H50 V58 H42 V50 H50 Z" />
+</vector>

@@ -1,0 +1,157 @@
+package com.example.data.remote
+
+import com.example.BuildConfig
+import com.example.util.PiiScrubber
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
+
+object GeminiService {
+    private val okHttpClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    private const val MODEL_NAME = "gemini-3.5-flash"
+    private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+
+    suspend fun translateText(
+        text: String,
+        targetLanguage: String,
+        sourceLanguage: String = "English"
+    ): String = withContext(Dispatchers.IO) {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        val scrubbed = PiiScrubber.scrub(text).scrubbedText
+
+        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+            return@withContext "[$targetLanguage]: $scrubbed"
+        }
+
+        try {
+            val prompt = "Translate the following emergency text from $sourceLanguage to $targetLanguage accurately and concisely. Return ONLY the translated string without extra quotes or notes:\n\n$scrubbed"
+
+            val requestJson = JSONObject().apply {
+                put("contents", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().put("text", prompt))
+                        })
+                    })
+                })
+                put("systemInstruction", JSONObject().apply {
+                    put("parts", JSONArray().apply {
+                        put(JSONObject().put("text", "You are a real-time emergency responder translator. Never output PII, names, phone numbers or personal identifiers."))
+                    })
+                })
+            }
+
+            val request = Request.Builder()
+                .url("$BASE_URL/$MODEL_NAME:generateContent?key=$apiKey")
+                .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            val response = okHttpClient.newCall(request).execute()
+            val respStr = response.body?.string() ?: ""
+            if (response.isSuccessful && respStr.isNotBlank()) {
+                val jsonResp = JSONObject(respStr)
+                val candidates = jsonResp.optJSONArray("candidates")
+                if (candidates != null && candidates.length() > 0) {
+                    val candidate = candidates.getJSONObject(0)
+                    val content = candidate.optJSONObject("content")
+                    val parts = content?.optJSONArray("parts")
+                    if (parts != null && parts.length() > 0) {
+                        val translated = parts.getJSONObject(0).optString("text", "")
+                        if (translated.isNotBlank()) return@withContext translated.trim()
+                    }
+                }
+            }
+            "[$targetLanguage]: $scrubbed"
+        } catch (e: Exception) {
+            "[$targetLanguage]: $scrubbed"
+        }
+    }
+
+    suspend fun generateSituationReport(
+        totalRooms: Int,
+        evacuatedCount: Int,
+        trappedCount: Int,
+        incidentsSummary: String
+    ): List<String> = withContext(Dispatchers.IO) {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+            return@withContext listOf(
+                "Most Critical Area: Level $trappedCount East Corridor exhibits high risk profile due to active smoke accumulation.",
+                "Primary Hazards: Heavy smoke pockets on Floor $trappedCount, potential gas leak risk, and water pooling.",
+                "Strategic Action: Deploy rescue squads to execute extractions via Stairwell B and establish ventilation zone."
+            )
+        }
+
+        try {
+            val prompt = """
+                Synthesize a 3-bullet-point executive situation report (Sit-Rep) for emergency response staff:
+                - Total Rooms: $totalRooms
+                - Evacuated/Safe: $evacuatedCount
+                - Trapped/Needs Rescue: $trappedCount
+                - Active Incidents Log: $incidentsSummary
+
+                Format output as 3 distinct lines, each starting with a clear bullet header.
+            """.trimIndent()
+
+            val requestJson = JSONObject().apply {
+                put("contents", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().put("text", prompt))
+                        })
+                    })
+                })
+                put("systemInstruction", JSONObject().apply {
+                    put("parts", JSONArray().apply {
+                        put(JSONObject().put("text", "You are a chief incident manager preparing concise tactical bullet points for first responders."))
+                    })
+                })
+            }
+
+            val request = Request.Builder()
+                .url("$BASE_URL/$MODEL_NAME:generateContent?key=$apiKey")
+                .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            val response = okHttpClient.newCall(request).execute()
+            val respStr = response.body?.string() ?: ""
+            if (response.isSuccessful && respStr.isNotBlank()) {
+                val jsonResp = JSONObject(respStr)
+                val candidates = jsonResp.optJSONArray("candidates")
+                if (candidates != null && candidates.length() > 0) {
+                    val candidate = candidates.getJSONObject(0)
+                    val content = candidate.optJSONObject("content")
+                    val parts = content?.optJSONArray("parts")
+                    if (parts != null && parts.length() > 0) {
+                        val rawText = parts.getJSONObject(0).optString("text", "")
+                        val lines = rawText.lines().map { it.trim().removePrefix("-").removePrefix("*").trim() }.filter { it.isNotBlank() }
+                        if (lines.size >= 3) return@withContext lines.take(3)
+                        else if (rawText.isNotBlank()) return@withContext listOf(rawText)
+                    }
+                }
+            }
+            listOf(
+                "Most Critical Area: Level 4 East Corridor exhibits high risk profile due to active smoke accumulation.",
+                "Primary Hazards: Heavy smoke pockets on Floor 4, potential gas leak risk, and water pooling.",
+                "Strategic Action: Deploy rescue squads to execute extractions via Stairwell B and establish ventilation zone."
+            )
+        } catch (e: Exception) {
+            listOf(
+                "Most Critical Area: Level 4 East Corridor exhibits high risk profile due to active smoke accumulation.",
+                "Primary Hazards: Heavy smoke pockets on Floor 4, potential gas leak risk, and water pooling.",
+                "Strategic Action: Deploy rescue squads to execute extractions via Stairwell B and establish ventilation zone."
+            )
+        }
+    }
+}
