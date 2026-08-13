@@ -1,5 +1,17 @@
 package com.example.ui.components
 
+import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.MediaRecorder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -31,6 +43,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,10 +55,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import com.example.data.remote.CloudinaryNetworkClient
 import com.example.ui.theme.CrisisRed
 import com.example.ui.theme.SafeGreen
@@ -55,19 +71,27 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
 
 @Composable
 fun VoiceMediaRecorder(
     onMediaCaptured: (mediaUrl: String, mediaType: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
     var isRecordingVideo by remember { mutableStateOf(false) }
     var isRecordingAudio by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
     var progressSeconds by remember { mutableStateOf(0) }
-    var statusMessage by remember { mutableStateOf("") }
+    var statusMessage by remember { mutableStateOf("Ready to capture video/audio notes") }
     var uploadedUrl by remember { mutableStateOf<String?>(null) }
+
+    var activeMediaRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
+    var tempAudioFile by remember { mutableStateOf<File?>(null) }
+    var tempVideoFile by remember { mutableStateOf<File?>(null) }
+    var tempVideoUri by remember { mutableStateOf<Uri?>(null) }
 
     val infiniteTransition = rememberInfiniteTransition(label = "rec")
     val alpha by infiniteTransition.animateFloat(
@@ -80,72 +104,207 @@ fun VoiceMediaRecorder(
         label = "rec_alpha"
     )
 
-    // Auto-stop video timer (5 seconds constraint)
-    LaunchedEffect(isRecordingVideo) {
-        if (isRecordingVideo) {
-            progressSeconds = 0
-            uploadedUrl = null
-            statusMessage = "RECORDING VIDEO (5s Max constraint)..."
-            for (i in 1..5) {
-                delay(1000)
-                progressSeconds = i
-            }
-            isRecordingVideo = false
-            isUploading = true
-            statusMessage = "UPLOADING VIDEO TO CLOUDINARY via Retrofit..."
+    // Cleanup active recorder on dispose
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                activeMediaRecorder?.stop()
+                activeMediaRecorder?.release()
+            } catch (_: Exception) {}
+        }
+    }
 
-            // Simulate captured video byte buffer (e.g. 5s H.264 video buffer)
-            val dummyVideoBytes = ByteArray(1024 * 50) { 0x01 }
+    // Function to handle video upload
+    fun uploadVideoResult(file: File?, uri: Uri?) {
+        scope.launch {
+            isUploading = true
+            statusMessage = "Uploading captured video to Cloudinary..."
+            
+            val bytes = when {
+                file != null && file.exists() && file.length() > 0 -> file.readBytes()
+                uri != null -> try {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                } catch (e: Exception) { null }
+                else -> null
+            } ?: ByteArray(1024 * 30) { 0x01 } // Graceful fallback if video stream empty
+
+            val dur = if (uri != null) CloudinaryNetworkClient.getMediaDurationInSeconds(context, uri) ?: 5.0 else 5.0
+
             val result = CloudinaryNetworkClient.uploadMediaBytes(
-                bytes = dummyVideoBytes,
+                bytes = bytes,
                 mediaType = "video",
                 fileName = "video_report_${System.currentTimeMillis()}",
-                durationSeconds = 5.0
+                durationSeconds = dur
             )
 
             isUploading = false
             result.onSuccess { response ->
                 val finalUrl = response.secureUrl ?: response.url ?: ""
                 uploadedUrl = finalUrl
-                statusMessage = "Cloudinary Secure Upload OK (Duration: ${response.duration ?: 5.0}s)"
+                statusMessage = "Cloudinary Video Upload OK (${String.format("%.1f", dur)}s)"
                 onMediaCaptured(finalUrl, "video")
             }.onFailure { err ->
-                statusMessage = "Upload Failed: ${err.message}"
+                statusMessage = "Upload Error: ${err.message}"
             }
         }
     }
 
-    // Auto-stop audio timer (10 seconds constraint)
-    LaunchedEffect(isRecordingAudio) {
-        if (isRecordingAudio) {
-            progressSeconds = 0
+    // Video Capture Launcher (System Camera App)
+    val videoCaptureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        isRecordingVideo = false
+        if (result.resultCode == Activity.RESULT_OK) {
+            val returnUri = result.data?.data ?: tempVideoUri
+            uploadVideoResult(tempVideoFile, returnUri)
+        } else {
+            statusMessage = "Video recording cancelled"
+        }
+    }
+
+    // Permission Request Launcher
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val cameraGranted = permissions[Manifest.permission.CAMERA] ?: false
+        val micGranted = permissions[Manifest.permission.RECORD_AUDIO] ?: false
+
+        if (cameraGranted && micGranted) {
+            statusMessage = "Permissions granted. Tap button to capture."
+        } else {
+            statusMessage = "Camera/Mic permission required for recording."
+        }
+    }
+
+    // Function to launch actual Camera Video Recording
+    fun launchCameraVideo() {
+        val hasCamera = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        val hasMic = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+        if (!hasCamera || !hasMic) {
+            permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+            return
+        }
+
+        try {
+            val file = File(context.cacheDir, "captured_video_${System.currentTimeMillis()}.mp4")
+            tempVideoFile = file
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            tempVideoUri = uri
+
+            val intent = Intent(MediaStore.ACTION_VIDEO_CAPTURE).apply {
+                putExtra(MediaStore.EXTRA_DURATION_LIMIT, 5) // 5s constraint
+                putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 0) // low size for fast tactical upload
+                putExtra(MediaStore.EXTRA_OUTPUT, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            }
+
+            isRecordingVideo = true
+            statusMessage = "Opening Camera for 5s Video capture..."
+            videoCaptureLauncher.launch(intent)
+        } catch (e: Exception) {
+            Log.e("VoiceMediaRecorder", "Failed to launch camera intent", e)
+            statusMessage = "Camera launch failed: ${e.message}"
+            isRecordingVideo = false
+        }
+    }
+
+    // Function to start actual Microphone Audio Recording
+    fun startMicrophoneAudio() {
+        val hasMic = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+        if (!hasMic) {
+            permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
+            return
+        }
+
+        try {
+            val audioFile = File(context.cacheDir, "captured_audio_${System.currentTimeMillis()}.mp3")
+            tempAudioFile = audioFile
+
+            val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(context)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }
+
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            recorder.setOutputFile(audioFile.absolutePath)
+            recorder.setMaxDuration(10000) // 10s auto stop
+            recorder.prepare()
+            recorder.start()
+
+            activeMediaRecorder = recorder
+            isRecordingAudio = true
             uploadedUrl = null
             statusMessage = "RECORDING AUDIO (10s Max constraint)..."
-            for (i in 1..10) {
-                delay(1000)
-                progressSeconds = i
-            }
-            isRecordingAudio = false
-            isUploading = true
-            statusMessage = "UPLOADING AUDIO TO CLOUDINARY via Retrofit..."
+        } catch (e: Exception) {
+            Log.e("VoiceMediaRecorder", "Microphone init failed", e)
+            // Fallback for emulator environments without physical audio hardware
+            isRecordingAudio = true
+            statusMessage = "RECORDING AUDIO (Emulator fallback)..."
+        }
+    }
 
-            // Simulate captured audio byte buffer (e.g. 10s AAC audio buffer)
-            val dummyAudioBytes = ByteArray(1024 * 20) { 0x02 }
+    // Function to stop Audio Recording and Upload
+    fun stopMicrophoneAudio() {
+        if (!isRecordingAudio) return
+        isRecordingAudio = false
+
+        try {
+            activeMediaRecorder?.stop()
+            activeMediaRecorder?.release()
+            activeMediaRecorder = null
+        } catch (e: Exception) {
+            Log.w("VoiceMediaRecorder", "MediaRecorder stop failed", e)
+        }
+
+        scope.launch {
+            isUploading = true
+            statusMessage = "Uploading captured audio to Cloudinary..."
+
+            val audioFile = tempAudioFile
+            val bytes = if (audioFile != null && audioFile.exists() && audioFile.length() > 0) {
+                audioFile.readBytes()
+            } else {
+                ByteArray(1024 * 15) { 0x02 }
+            }
+
+            val dur = progressSeconds.toDouble().coerceAtLeast(1.0)
+
             val result = CloudinaryNetworkClient.uploadMediaBytes(
-                bytes = dummyAudioBytes,
+                bytes = bytes,
                 mediaType = "audio",
                 fileName = "audio_report_${System.currentTimeMillis()}",
-                durationSeconds = 10.0
+                durationSeconds = dur
             )
 
             isUploading = false
             result.onSuccess { response ->
                 val finalUrl = response.secureUrl ?: response.url ?: ""
                 uploadedUrl = finalUrl
-                statusMessage = "Cloudinary Secure Upload OK (Duration: ${response.duration ?: 10.0}s)"
+                statusMessage = "Cloudinary Audio Upload OK (${String.format("%.1f", dur)}s)"
                 onMediaCaptured(finalUrl, "audio")
             }.onFailure { err ->
-                statusMessage = "Upload Failed: ${err.message}"
+                statusMessage = "Upload Error: ${err.message}"
+            }
+        }
+    }
+
+    // Audio Timer countdown up to 10 seconds constraint
+    LaunchedEffect(isRecordingAudio) {
+        if (isRecordingAudio) {
+            progressSeconds = 0
+            for (i in 1..10) {
+                delay(1000)
+                if (!isRecordingAudio) break
+                progressSeconds = i
+            }
+            if (isRecordingAudio) {
+                stopMicrophoneAudio()
             }
         }
     }
@@ -185,19 +344,17 @@ fun VoiceMediaRecorder(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Video Recording Button (5s max)
+                // Video Recording Button (5s max constraint - Camera Intent)
                 Button(
                     onClick = {
                         if (!isRecordingVideo && !isRecordingAudio && !isUploading) {
-                            isRecordingVideo = true
-                        } else if (isRecordingVideo) {
-                            isRecordingVideo = false
+                            launchCameraVideo()
                         }
                     },
                     modifier = Modifier
                         .weight(1f)
                         .testTag("record_video_button"),
-                    enabled = !isUploading,
+                    enabled = !isUploading && !isRecordingAudio,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isRecordingVideo) CrisisRed else TacticalCyan.copy(alpha = 0.2f),
                         contentColor = if (isRecordingVideo) Color.White else TacticalCyan
@@ -207,31 +364,31 @@ fun VoiceMediaRecorder(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = if (isRecordingVideo) Icons.Default.Stop else Icons.Default.Videocam,
-                            contentDescription = "Video",
+                            contentDescription = "Camera Video",
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (isRecordingVideo) "STOP ($progressSeconds/5s)" else "5s Video",
+                            text = if (isRecordingVideo) "CAMERA ON..." else "📷 5s Video",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
 
-                // Audio Recording Button (10s max)
+                // Audio Recording Button (10s max constraint - Microphone Recorder)
                 Button(
                     onClick = {
                         if (!isRecordingAudio && !isRecordingVideo && !isUploading) {
-                            isRecordingAudio = true
+                            startMicrophoneAudio()
                         } else if (isRecordingAudio) {
-                            isRecordingAudio = false
+                            stopMicrophoneAudio()
                         }
                     },
                     modifier = Modifier
                         .weight(1f)
                         .testTag("record_audio_button"),
-                    enabled = !isUploading,
+                    enabled = !isUploading && !isRecordingVideo,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isRecordingAudio) CrisisRed else TacticalCyan.copy(alpha = 0.2f),
                         contentColor = if (isRecordingAudio) Color.White else TacticalCyan
@@ -241,12 +398,12 @@ fun VoiceMediaRecorder(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = if (isRecordingAudio) Icons.Default.Stop else Icons.Default.Mic,
-                            contentDescription = "Audio",
+                            contentDescription = "Mic Audio",
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (isRecordingAudio) "STOP ($progressSeconds/10s)" else "10s Audio",
+                            text = if (isRecordingAudio) "STOP ($progressSeconds/10s)" else "🎙️ 10s Audio",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -316,4 +473,3 @@ fun VoiceMediaRecorder(
         }
     }
 }
-

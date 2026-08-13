@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -73,6 +75,7 @@ import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.WarningAmber
 import com.example.util.HazardClusterer
 import com.example.util.PiiScrubber
+import com.example.util.TextToSpeechHelper
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -84,6 +87,13 @@ fun ResponderTriageScreen(
     val context = LocalContext.current
     val repository = remember { EmergencyRepository(context) }
     val scope = rememberCoroutineScope()
+
+    val ttsHelper = remember { TextToSpeechHelper(context) }
+    DisposableEffect(Unit) {
+        onDispose {
+            ttsHelper.shutdown()
+        }
+    }
 
     val emergencies by repository.getAllActiveEmergencies().collectAsState(initial = emptyList())
     val incidents by repository.getAllIncidents().collectAsState(initial = emptyList())
@@ -475,14 +485,49 @@ fun ResponderTriageScreen(
                                         .padding(8.dp)
                                 ) {
                                     Column {
-                                        Text(
-                                            text = if (isResponder) "You (Responder)" else "Guest (Room $selectedRoomId)",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isResponder) CrisisRed else TacticalCyan
-                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = if (isResponder) "You (Responder)" else "Guest (Room $selectedRoomId)",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isResponder) CrisisRed else TacticalCyan
+                                            )
+
+                                            val ttsText = msg.translatedText ?: msg.text
+                                            Row(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(TacticalCyan.copy(alpha = 0.2f))
+                                                    .clickable {
+                                                        ttsHelper.speak(ttsText, responderTargetLang)
+                                                    }
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.VolumeUp,
+                                                    contentDescription = "TTS Voice",
+                                                    tint = TacticalCyan,
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(2.dp))
+                                                Text(
+                                                    text = "🔊 TTS",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = TacticalCyan
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(2.dp))
                                         Text(text = msg.text, fontSize = 12.sp, color = TextPrimary)
                                         if (!msg.translatedText.isNullOrBlank()) {
+                                            Spacer(modifier = Modifier.height(2.dp))
                                             Text(
                                                 text = "🌐 Translated ($responderTargetLang): ${msg.translatedText}",
                                                 fontSize = 10.sp,
