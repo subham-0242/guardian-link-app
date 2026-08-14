@@ -75,8 +75,11 @@ interface DangerZoneDao {
 
 @Dao
 interface BroadcastDao {
-    @Query("SELECT * FROM broadcasts ORDER BY createdAt DESC LIMIT 12")
+    @Query("SELECT * FROM broadcasts ORDER BY createdAt DESC LIMIT 20")
     fun getRecentBroadcasts(): Flow<List<Broadcast>>
+
+    @Query("SELECT * FROM broadcasts WHERE targetFloor IS NULL OR targetFloor = :floor ORDER BY createdAt DESC")
+    fun getBroadcastsForFloor(floor: Int): Flow<List<Broadcast>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBroadcast(broadcast: Broadcast)

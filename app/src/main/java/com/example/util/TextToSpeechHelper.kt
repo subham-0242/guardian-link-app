@@ -1,6 +1,10 @@
 package com.example.util
 
 import android.content.Context
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.os.Handler
+import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import java.util.Locale
@@ -17,6 +21,24 @@ class TextToSpeechHelper(context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
+    fun playPaChime(onFinish: () -> Unit = {}) {
+        try {
+            val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 95)
+            toneGen.startTone(ToneGenerator.TONE_PROP_BEEP2, 350)
+            Handler(Looper.getMainLooper()).postDelayed({
+                try {
+                    toneGen.release()
+                } catch (e: Exception) {
+                    // Ignore
+                }
+                onFinish()
+            }, 400)
+        } catch (e: Exception) {
+            Log.e("TextToSpeechHelper", "Tone generation failed", e)
+            onFinish()
+        }
+    }
+
     fun speak(text: String, languageName: String = "English", onComplete: (() -> Unit)? = null) {
         if (!isInitialized || tts == null) return
 
@@ -24,6 +46,16 @@ class TextToSpeechHelper(context: Context) : TextToSpeech.OnInitListener {
         tts?.language = locale
         val utteranceId = "emergency_tts_${System.currentTimeMillis()}"
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+    }
+
+    fun playPaChimeAndSpeak(text: String, languageName: String = "English", onComplete: (() -> Unit)? = null) {
+        playPaChime {
+            speak(text, languageName, onComplete)
+        }
+    }
+
+    fun isSpeaking(): Boolean {
+        return tts?.isSpeaking == true
     }
 
     fun stop() {

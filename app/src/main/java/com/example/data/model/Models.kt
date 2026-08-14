@@ -93,8 +93,13 @@ data class DangerZone(
 data class Broadcast(
     @PrimaryKey val id: String,
     val message: String,
-    val priority: String = "normal", // "low", "normal", "high", "critical"
-    val target: String = "all", // "all", "staff", "guests"
+    val priority: String = "critical", // "low", "normal", "high", "critical"
+    val target: String = "all", // "all", "floor_1", "floor_2", "floor_3", "floor_4", "floor_5", "staff", "guests"
+    val targetFloor: Int? = null, // null for all floors / building-wide, or 1..5
+    val hasAudio: Boolean = false,
+    val audioUrl: String? = null,
+    val audioTtsText: String? = null,
+    val senderTitle: String = "Incident Commander",
     val delivery: String = "sent", // "sent", "queued", "failed"
     val createdAt: String = ""
 )

@@ -23,15 +23,23 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Emergency
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +55,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.remote.GeminiService
 import com.example.data.repository.EmergencyRepository
 import com.example.ui.components.ActionBanner
 import com.example.ui.components.GuestCommsDrawer
@@ -63,6 +72,7 @@ import com.example.ui.theme.TacticalCyan
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.WarningAmber
+import com.example.util.TextToSpeechHelper
 import kotlinx.coroutines.launch
 
 @Composable
@@ -76,7 +86,7 @@ fun GuestDashboardScreen(
     val scope = rememberCoroutineScope()
 
     val guestState by repository.getGuestForRoom(roomId).collectAsState(initial = null)
-    val broadcasts by repository.getAllBroadcasts().collectAsState(initial = emptyList())
+    val broadcasts by repository.getBroadcastsForFloor(4).collectAsState(initial = emptyList())
     val messages by repository.getChatMessagesForRoom(roomId).collectAsState(initial = emptyList())
     val nodes by repository.getFloorNodes(4).collectAsState(initial = emptyList())
     val floorPlan by repository.getFloorPlan(4).collectAsState(initial = null)
@@ -85,6 +95,31 @@ fun GuestDashboardScreen(
     var selectedLanguage by remember { mutableStateOf("Spanish") }
     var showLangPicker by remember { mutableStateOf(false) }
     var translatedBroadcastText by remember { mutableStateOf("") }
+    var isPlayingPaAudio by remember { mutableStateOf(false) }
+    var isAcknowledged by remember { mutableStateOf(false) }
+
+    val ttsHelper = remember { TextToSpeechHelper(context) }
+    DisposableEffect(Unit) {
+        onDispose {
+            ttsHelper.shutdown()
+        }
+    }
+
+    val latestBroadcast = broadcasts.firstOrNull()
+    val rawBroadcastMsg = latestBroadcast?.message ?: "ATTENTION FLOOR 4: West stairwell blocked. Evacuate via East exit only."
+
+    LaunchedEffect(latestBroadcast, selectedLanguage) {
+        if (selectedLanguage.equals("English", ignoreCase = true)) {
+            translatedBroadcastText = rawBroadcastMsg
+        } else {
+            try {
+                val translated = GeminiService.translateText(rawBroadcastMsg, selectedLanguage)
+                translatedBroadcastText = translated
+            } catch (e: Exception) {
+                translatedBroadcastText = rawBroadcastMsg
+            }
+        }
+    }
 
     val scrollState = rememberScrollState()
 
@@ -178,38 +213,171 @@ fun GuestDashboardScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Multilingual Broadcast Ticker Bar
-            val latestBc = broadcasts.firstOrNull()?.message ?: "Fire crews actively clearing Level 4 East Stairwell. Stay inside room."
-            Box(
+            // Mass Emergency Broadcast / PA System Alert Card
+            val isFloor4Targeted = latestBroadcast?.targetFloor == 4
+            val targetScopeLabel = when {
+                latestBroadcast?.targetFloor != null -> "DIRECTED TO FLOOR 0${latestBroadcast.targetFloor}"
+                else -> "BUILDING-WIDE EVACUATION BROADCAST"
+            }
+            val broadcastDisplayText = if (translatedBroadcastText.isNotBlank()) translatedBroadcastText else rawBroadcastMsg
+
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(GlassSurface)
-                    .border(1.dp, GlassBorder, RoundedCornerShape(12.dp))
-                    .padding(12.dp)
+                    .testTag("guest_pa_broadcast_card")
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(
+                        1.5.dp,
+                        if (isFloor4Targeted) CrisisRed else WarningAmber,
+                        RoundedCornerShape(16.dp)
+                    ),
+                colors = CardDefaults.cardColors(containerColor = SurfaceCard)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Campaign,
-                        contentDescription = "Broadcast",
-                        tint = WarningAmber,
-                        modifier = Modifier.size(20.dp)
+                Column(modifier = Modifier.padding(14.dp)) {
+                    // Header Bar
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isFloor4Targeted) CrisisRed.copy(alpha = 0.2f) else WarningAmber.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Campaign,
+                                    contentDescription = "PA Alert",
+                                    tint = if (isFloor4Targeted) CrisisRed else WarningAmber,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "🚨 MASS PA EMERGENCY ALERT",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = if (isFloor4Targeted) CrisisRed else WarningAmber
+                                )
+                                Text(
+                                    text = targetScopeLabel,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TacticalCyan
+                                )
+                            }
+                        }
+
+                        // Priority Pill
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isFloor4Targeted) CrisisRed else WarningAmber)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = if (latestBroadcast?.priority?.uppercase() == "CRITICAL") "CRITICAL" else "URGENT",
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Broadcast Message Text
+                    Text(
+                        text = broadcastDisplayText,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary,
+                        lineHeight = 18.sp
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
+
+                    // English reference if translated
+                    if (!selectedLanguage.equals("English", ignoreCase = true) && rawBroadcastMsg != broadcastDisplayText) {
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "LATEST BROADCAST ALERT ($selectedLanguage TRANSLATED):",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = WarningAmber
+                            text = "Original (EN): $rawBroadcastMsg",
+                            fontSize = 10.5.sp,
+                            color = TextSecondary
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = latestBc,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = TextPrimary
-                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Audio PA Announcement Player & Acknowledgment Controls
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Play / Stop PA Audio Button
+                        Button(
+                            onClick = {
+                                if (isPlayingPaAudio) {
+                                    ttsHelper.stop()
+                                    isPlayingPaAudio = false
+                                } else {
+                                    isPlayingPaAudio = true
+                                    ttsHelper.playPaChimeAndSpeak(
+                                        text = broadcastDisplayText,
+                                        languageName = selectedLanguage
+                                    ) {
+                                        isPlayingPaAudio = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .testTag("play_pa_audio_button"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isPlayingPaAudio) CrisisRed else TacticalCyan,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isPlayingPaAudio) Icons.Default.Stop else Icons.Default.VolumeUp,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isPlayingPaAudio) "STOP AUDIO" else "🔊 PLAY PA AUDIO ($selectedLanguage)",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // Acknowledge Button
+                        OutlinedButton(
+                            onClick = { isAcknowledged = !isAcknowledged },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("acknowledge_broadcast_button"),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (isAcknowledged) SafeGreen else TextSecondary
+                            ),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = if (isAcknowledged) SafeGreen else TextSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isAcknowledged) "DELIVERED" else "ACKNOWLEDGE",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }

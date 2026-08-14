@@ -363,18 +363,33 @@ class EmergencyRepository(context: Context) {
 
     // --- Staff Operations ---
     fun getAllBroadcasts(): Flow<List<Broadcast>> = broadcastDao.getRecentBroadcasts()
+    fun getBroadcastsForFloor(floor: Int): Flow<List<Broadcast>> = broadcastDao.getBroadcastsForFloor(floor)
     fun getActiveDangerZones(): Flow<List<DangerZone>> = dangerZoneDao.getActiveDangerZones()
     fun getAllIncidents(): Flow<List<Incident>> = incidentDao.getAllIncidents()
     fun getFloorNodes(floor: Int): Flow<List<FloorNode>> = floorNodeDao.getNodesForFloor(floor)
     fun getFloorPlan(floor: Int): Flow<FloorPlan?> = floorPlanDao.getFloorPlan(floor)
 
-    suspend fun publishBroadcast(message: String, priority: String, target: String) {
+    suspend fun publishBroadcast(
+        message: String,
+        priority: String = "critical",
+        target: String = "all",
+        targetFloor: Int? = null,
+        hasAudio: Boolean = false,
+        audioUrl: String? = null,
+        audioTtsText: String? = null,
+        senderTitle: String = "Incident Commander"
+    ) {
         val iso = nowIso()
         val bc = Broadcast(
             id = "bc_${UUID.randomUUID()}",
             message = message,
             priority = priority,
             target = target,
+            targetFloor = targetFloor,
+            hasAudio = hasAudio,
+            audioUrl = audioUrl,
+            audioTtsText = audioTtsText ?: message,
+            senderTitle = senderTitle,
             delivery = "sent",
             createdAt = iso
         )
