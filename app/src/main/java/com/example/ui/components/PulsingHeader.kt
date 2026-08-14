@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.CrisisRed
@@ -68,17 +69,21 @@ fun PulsingHeader(
             .clip(RoundedCornerShape(16.dp))
             .background(SurfaceCard.copy(alpha = 0.85f))
             .border(1.dp, TacticalCyan.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
-            .padding(16.dp)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Left Content (Icon + Title + Subtitle) with flexible weight
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
                         .background(TacticalCyan.copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center
@@ -87,73 +92,81 @@ fun PulsingHeader(
                         imageVector = Icons.Default.Shield,
                         contentDescription = "GuardianLink Shield",
                         tint = TacticalCyan,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
 
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "GUARDIANLINK",
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = TacticalCyan,
-                            letterSpacing = 1.2.sp
+                            letterSpacing = 1.1.sp,
+                            maxLines = 1
                         )
                         if (roleTitle != null) {
                             Text(
                                 text = " • $roleTitle",
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = TextSecondary
+                                color = TextSecondary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
 
                     Text(
                         text = if (roomId.isNotBlank()) "Room $roomId • $hotelName" else hotelName,
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            // Sync Badge
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Sync Badge - Compact, fixed bounds, never vertically stretched
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(if (isSynced) SafeGreen.copy(alpha = 0.15f) else CrisisRed.copy(alpha = 0.15f))
                     .border(
                         1.dp,
                         if (isSynced) SafeGreen.copy(alpha = 0.4f) else CrisisRed.copy(alpha = 0.4f),
-                        RoundedCornerShape(20.dp)
+                        RoundedCornerShape(14.dp)
                     )
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                    .padding(horizontal = 8.dp, vertical = 5.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
+                        .size(7.dp)
                         .clip(CircleShape)
                         .alpha(alpha)
                         .background(if (isSynced) SafeGreen else CrisisRed)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(5.dp))
                 Icon(
                     imageVector = if (isSynced) Icons.Default.Wifi else Icons.Default.WifiOff,
                     contentDescription = null,
                     tint = if (isSynced) SafeGreen else CrisisRed,
-                    modifier = Modifier.size(14.dp)
+                    modifier = Modifier.size(13.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = if (isSynced) "SYNCED" else "OFFLINE",
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isSynced) SafeGreen else CrisisRed
+                    color = if (isSynced) SafeGreen else CrisisRed,
+                    maxLines = 1
                 )
             }
         }

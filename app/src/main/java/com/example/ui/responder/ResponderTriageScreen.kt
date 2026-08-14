@@ -56,6 +56,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -152,7 +153,10 @@ fun ResponderTriageScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     IconButton(
                         onClick = onBackToHome,
                         modifier = Modifier.testTag("responder_back_button")
@@ -163,14 +167,18 @@ fun ResponderTriageScreen(
                             tint = CrisisRed
                         )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "FIRST RESPONDER BRIDGE",
-                        fontSize = 18.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Black,
-                        color = CrisisRed
+                        color = CrisisRed,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
+
+                Spacer(modifier = Modifier.width(6.dp))
 
                 // PII Scrubber Active Badge
                 Row(
@@ -178,21 +186,22 @@ fun ResponderTriageScreen(
                         .clip(RoundedCornerShape(12.dp))
                         .background(SafeGreen.copy(alpha = 0.15f))
                         .border(1.dp, SafeGreen.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.Security,
                         contentDescription = "PII Shield",
                         tint = SafeGreen,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(13.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "PII SCRUBBED ($piiCount)",
-                        fontSize = 10.sp,
+                        fontSize = 9.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = SafeGreen
+                        color = SafeGreen,
+                        maxLines = 1
                     )
                 }
             }
@@ -1078,33 +1087,42 @@ fun ResponderTriageScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Description,
                                 contentDescription = null,
                                 tint = TacticalCyan,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "AUTOMATED AFTER-ACTION REPORT (AAR)",
-                                fontSize = 13.sp,
+                                text = "AUTOMATED AAR REPORT",
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TacticalCyan
+                                color = TacticalCyan,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
+
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(SafeGreen.copy(alpha = 0.2f))
+                                .border(1.dp, SafeGreen.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "CRISIS RESOLVED",
-                                fontSize = 10.sp,
+                                text = "RESOLVED",
+                                fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = SafeGreen
+                                color = SafeGreen,
+                                maxLines = 1
                             )
                         }
                     }

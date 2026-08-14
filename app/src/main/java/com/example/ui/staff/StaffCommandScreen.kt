@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,6 +53,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -79,6 +81,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.FloorNode
 import com.example.data.repository.EmergencyRepository
+import com.example.ui.components.TacticalEvacuationMap
 import com.example.ui.theme.CrisisRed
 import com.example.ui.theme.DarkCanvas
 import com.example.ui.theme.GlassBorder
@@ -108,8 +111,9 @@ fun StaffCommandScreen(
     val dangerZones by repository.getActiveDangerZones().collectAsState(initial = emptyList())
 
     // Node plotting & status state
+    var selectedRoomId by remember { mutableStateOf("402") }
     var statusMessage by remember { mutableStateOf("") }
-    var selectedNodeType by remember { mutableStateOf("walkable") } // "walkable" (cyan) or "portal" (orange)
+    var selectedNodeType by remember { mutableStateOf("walkable") } // "walkable" (cyan), "portal" (orange), or "inspect"
     var plottedNodes = remember { mutableStateListOf<FloorNode>() }
 
     // Custom Floor Map State
@@ -215,26 +219,34 @@ fun StaffCommandScreen(
                 colors = CardDefaults.cardColors(containerColor = SurfaceCard)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    // Header: Title and Action Button cleanly structured for mobile
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.AutoAwesome,
                                 contentDescription = null,
                                 tint = TacticalCyan,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "GEMINI SYNTHESIZED SITUATION REPORT",
-                                fontSize = 13.sp,
+                                text = "GEMINI SITUATION REPORT",
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TacticalCyan
+                                color = TacticalCyan,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
+
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         Button(
                             onClick = {
@@ -244,14 +256,31 @@ fun StaffCommandScreen(
                                     isGeneratingSitRep = false
                                 }
                             },
-                            modifier = Modifier.testTag("generate_sitrep_button"),
+                            modifier = Modifier
+                                .height(36.dp)
+                                .testTag("generate_sitrep_button"),
                             colors = ButtonDefaults.buttonColors(containerColor = TacticalCyan, contentColor = Color.Black),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
                         ) {
                             if (isGeneratingSitRep) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.Black, strokeWidth = 2.dp)
+                                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.Black, strokeWidth = 2.dp)
                             } else {
-                                Text("SYNTHESIZE SIT-REP", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(12.dp),
+                                        tint = Color.Black
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "SYNTHESIZE",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }
@@ -474,7 +503,7 @@ fun StaffCommandScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. Interactive Floor Node Plotter
+            // 2. Interactive Floor Plan & Tactical Evacuation Map
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -498,7 +527,7 @@ fun StaffCommandScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "INTERACTIVE FLOOR PLAN NODE PLOTTER",
+                                text = "TACTICAL FLOOR PLAN & EVACUATION MAP",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = WarningAmber
@@ -506,33 +535,105 @@ fun StaffCommandScreen(
                         }
 
                         Text(
-                            text = "Floor 4 (900x1000 CRS)",
+                            text = "Floor 4 • Inspect RM $selectedRoomId",
                             fontSize = 11.sp,
-                            color = TextSecondary
+                            fontWeight = FontWeight.Bold,
+                            color = TacticalCyan
                         )
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Node Type Toggle Bar
+                    // Room Quick Selector Row
+                    Text(
+                        text = "INSPECT GUEST ROOM ROUTE:",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        (401..406).forEach { rm ->
+                            val isSelected = selectedRoomId == rm.toString()
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (isSelected) CrisisRed else GlassSurface)
+                                    .border(1.dp, if (isSelected) CrisisRed else GlassBorder, RoundedCornerShape(6.dp))
+                                    .clickable { selectedRoomId = rm.toString() }
+                                    .padding(vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "$rm",
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color.White else TextPrimary
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        (407..412).forEach { rm ->
+                            val isSelected = selectedRoomId == rm.toString()
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (isSelected) CrisisRed else GlassSurface)
+                                    .border(1.dp, if (isSelected) CrisisRed else GlassBorder, RoundedCornerShape(6.dp))
+                                    .clickable { selectedRoomId = rm.toString() }
+                                    .padding(vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "$rm",
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color.White else TextPrimary
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Mode Selector Bar (Walkable node, portal node, or inspect room)
+                    Text(
+                        text = "CANVAS INTERACTION MODE:",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("node_type_walkable")
-                                .clip(RoundedCornerShape(10.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(if (selectedNodeType == "walkable") TacticalCyan else SurfaceCard)
-                                .border(1.dp, TacticalCyan, RoundedCornerShape(10.dp))
+                                .border(1.dp, TacticalCyan, RoundedCornerShape(8.dp))
                                 .clickable { selectedNodeType = "walkable" }
-                                .padding(vertical = 8.dp),
+                                .padding(vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "WALKABLE NODE (CYAN)",
-                                fontSize = 11.sp,
+                                text = "+ WALKABLE",
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (selectedNodeType == "walkable") Color.Black else TacticalCyan
                             )
@@ -542,108 +643,79 @@ fun StaffCommandScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("node_type_portal")
-                                .clip(RoundedCornerShape(10.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(if (selectedNodeType == "portal") WarningAmber else SurfaceCard)
-                                .border(1.dp, WarningAmber, RoundedCornerShape(10.dp))
+                                .border(1.dp, WarningAmber, RoundedCornerShape(8.dp))
                                 .clickable { selectedNodeType = "portal" }
-                                .padding(vertical = 8.dp),
+                                .padding(vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "PORTAL / EGRESS (ORANGE)",
-                                fontSize = 11.sp,
+                                text = "+ PORTAL",
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (selectedNodeType == "portal") Color.Black else WarningAmber
                             )
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Plotter Canvas
-                    val activeNodesList = if (plottedNodes.isNotEmpty()) plottedNodes else dbNodes
-                    val currentMapUrl = if (customMapUrlInput.isNotBlank()) customMapUrlInput else dbFloorPlan?.imageUrl
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(240.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(DarkCanvas)
-                    ) {
-                        if (!currentMapUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = currentMapUrl,
-                                contentDescription = "Plotter Map Overlay",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop,
-                                alpha = 0.5f
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selectedNodeType == "inspect") SafeGreen else SurfaceCard)
+                                .border(1.dp, SafeGreen, RoundedCornerShape(8.dp))
+                                .clickable { selectedNodeType = "inspect" }
+                                .padding(vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "📍 SELECT RM",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (selectedNodeType == "inspect") Color.Black else SafeGreen
                             )
                         }
+                    }
 
-                        Canvas(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .pointerInput(Unit) {
-                                    detectTapGestures { offset ->
-                                        // Tap on map plots a new node coordinate in CRS (0..900, 0..1000)
-                                        val crsX = ((offset.x / size.width) * 900.0)
-                                        val crsY = ((1.0 - (offset.y / size.height)) * 1000.0)
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                                        val newNode = FloorNode(
-                                            id = "fn_${UUID.randomUUID().toString().take(6)}",
-                                            floor = 4,
-                                            nodeType = selectedNodeType,
-                                            x = crsX,
-                                            y = crsY,
-                                            label = if (selectedNodeType == "portal") "Stairwell / Exit" else "Walkable Node"
-                                        )
+                    // Tactical Evacuation & Floor Blueprint Map (Same high-contrast architectural map)
+                    val activeNodesList = if (plottedNodes.isNotEmpty()) plottedNodes else dbNodes
+                    val currentMapUrl = if (customMapUrlInput.isNotBlank()) customMapUrlInput else dbFloorPlan?.imageUrl
 
-                                        if (plottedNodes.isEmpty()) {
-                                            plottedNodes.addAll(dbNodes)
-                                        }
-                                        plottedNodes.add(newNode)
-                                        statusMessage = "Plotted node at CRS (${crsX.toInt()}, ${crsY.toInt()})"
+                    TacticalEvacuationMap(
+                        roomId = selectedRoomId,
+                        floor = 4,
+                        nodes = activeNodesList,
+                        dangerZones = dangerZones,
+                        floorPlanUrl = currentMapUrl,
+                        onMapTap = { offset, crsX, crsY ->
+                            when (selectedNodeType) {
+                                "walkable", "portal" -> {
+                                    val newNode = FloorNode(
+                                        id = "fn_${UUID.randomUUID().toString().take(6)}",
+                                        floor = 4,
+                                        nodeType = selectedNodeType,
+                                        x = crsX,
+                                        y = crsY,
+                                        label = if (selectedNodeType == "portal") "Stairwell / Exit" else "Walkable Node"
+                                    )
+                                    if (plottedNodes.isEmpty()) {
+                                        plottedNodes.addAll(dbNodes)
                                     }
+                                    plottedNodes.add(newNode)
+                                    statusMessage = "Plotted $selectedNodeType node at CRS (${crsX.toInt()}, ${crsY.toInt()})"
                                 }
-                        ) {
-                            val w = size.width
-                            val h = size.height
-
-                            fun scaleX(x: Double): Float = ((x / 900.0) * w).toFloat()
-                            fun scaleY(y: Double): Float = ((1.0 - (y / 1000.0)) * h).toFloat()
-
-                            // Draw Grid
-                            for (i in 0..6) {
-                                val gx = (w / 6) * i
-                                drawLine(color = TacticalCyan.copy(alpha = 0.1f), start = Offset(gx, 0f), end = Offset(gx, h))
-                                val gy = (h / 6) * i
-                                drawLine(color = TacticalCyan.copy(alpha = 0.1f), start = Offset(0f, gy), end = Offset(w, gy))
-                            }
-
-                            // Draw Corridors
-                            val cy = scaleY(450.0)
-                            drawRect(color = Color(0xFF1E293B), topLeft = Offset(10f, cy - 20f), size = Size(w - 20f, 40f))
-
-                            // Draw All Active Nodes
-                            activeNodesList.forEach { n ->
-                                val nx = scaleX(n.x)
-                                val ny = scaleY(n.y)
-                                val color = if (n.nodeType == "portal") WarningAmber else TacticalCyan
-                                drawCircle(color = color, center = Offset(nx, ny), radius = 10f)
-                                drawCircle(color = Color.White, center = Offset(nx, ny), radius = 4f)
+                                "inspect" -> {
+                                    val col = (((crsX - 150.0) / 120.0).toInt()).coerceIn(0, 5)
+                                    val isNorth = crsY >= 450.0
+                                    val tappedRoom = if (isNorth) 401 + col else 407 + col
+                                    selectedRoomId = tappedRoom.toString()
+                                    statusMessage = "Inspecting Room $selectedRoomId evacuation route"
+                                }
                             }
                         }
-
-                        Text(
-                            text = "TAP CANVAS TO PLOT NEW NODE",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextSecondary,
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(8.dp)
-                        )
-                    }
+                    )
 
                     Spacer(modifier = Modifier.height(10.dp))
 
