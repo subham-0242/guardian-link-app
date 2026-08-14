@@ -25,17 +25,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Air
+import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Emergency
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SupportAgent
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -45,6 +51,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -105,10 +112,14 @@ fun ResponderTriageScreen(
     val emergencies by repository.getAllActiveEmergencies().collectAsState(initial = emptyList())
     val incidents by repository.getAllIncidents().collectAsState(initial = emptyList())
     val nodes by repository.getFloorNodes(4).collectAsState(initial = emptyList())
+    val dangerZones by repository.getDangerZonesForFloor(4).collectAsState(initial = emptyList())
     val floorPlan by repository.getFloorPlan(4).collectAsState(initial = null)
 
     var selectedRoomId by remember { mutableStateOf("402") }
     val messages by repository.getChatMessagesForRoom(selectedRoomId).collectAsState(initial = emptyList())
+
+    var activeHazardTool by remember { mutableStateOf("fire") } // "fire", "smoke", "inspect"
+    var hazardDeployFeedback by remember { mutableStateOf("") }
 
     var responderMsgInput by remember { mutableStateOf("") }
     var responderTargetLang by remember { mutableStateOf("Spanish") }
@@ -296,12 +307,407 @@ fun ResponderTriageScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Tactical Floor Evacuation & Custom Map for Responders
+            // Hazard Zone Marker Dropper & Real-time Graph Updater Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("hazard_dropper_card")
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.5.dp, if (dangerZones.isNotEmpty()) CrisisRed else TacticalCyan.copy(alpha = 0.5f), RoundedCornerShape(16.dp)),
+                colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(CrisisRed.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.LocalFireDepartment,
+                                    contentDescription = null,
+                                    tint = CrisisRed,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "TACTICAL HAZARD ZONE DROPPER",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = CrisisRed
+                                )
+                                Text(
+                                    text = "REAL-TIME GRAPH REROUTING ENGINE",
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (dangerZones.isNotEmpty()) CrisisRed else SafeGreen.copy(alpha = 0.2f))
+                                .padding(horizontal = 6.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = if (dangerZones.isNotEmpty()) "${dangerZones.size} ACTIVE HAZARD${if (dangerZones.size > 1) "S" else ""}" else "GRAPH CLEAR",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (dangerZones.isNotEmpty()) Color.White else SafeGreen
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "1. SELECT HAZARD MARKER TOOL (TAP MAP TO DROP):",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TacticalCyan
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Marker Tool Mode Selector Chips
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // FIRE ZONE TOOL
+                        val isFireTool = activeHazardTool == "fire"
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isFireTool) CrisisRed else GlassSurface)
+                                .border(1.dp, if (isFireTool) CrisisRed else GlassBorder, RoundedCornerShape(10.dp))
+                                .clickable { activeHazardTool = "fire" }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.LocalFireDepartment,
+                                    contentDescription = null,
+                                    tint = if (isFireTool) Color.White else CrisisRed,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "DROP FIRE 🔥",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isFireTool) Color.White else TextPrimary
+                                )
+                            }
+                        }
+
+                        // SMOKE ZONE TOOL
+                        val isSmokeTool = activeHazardTool == "smoke"
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isSmokeTool) WarningAmber else GlassSurface)
+                                .border(1.dp, if (isSmokeTool) WarningAmber else GlassBorder, RoundedCornerShape(10.dp))
+                                .clickable { activeHazardTool = "smoke" }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Air,
+                                    contentDescription = null,
+                                    tint = if (isSmokeTool) Color.Black else WarningAmber,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "DROP SMOKE 💨",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSmokeTool) Color.Black else TextPrimary
+                                )
+                            }
+                        }
+
+                        // INSPECT TOOL
+                        val isInspect = activeHazardTool == "inspect"
+                        Box(
+                            modifier = Modifier
+                                .weight(0.9f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isInspect) TacticalCyan else GlassSurface)
+                                .border(1.dp, if (isInspect) TacticalCyan else GlassBorder, RoundedCornerShape(10.dp))
+                                .clickable { activeHazardTool = "inspect" }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "📍 SELECT RM",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isInspect) Color.Black else TextPrimary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Rapid Deployment Presets Row
+                    Text(
+                        text = "2. RAPID HAZARD CORRIDOR PRESETS:",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // Preset 1: West Stairwell Fire (Blocks Exit A)
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    repository.createDangerZone(
+                                        floor = 4,
+                                        label = "West Stairwell Fire (Exit A Blocked)",
+                                        severity = "critical",
+                                        radius = 65.0,
+                                        crsX = 130.0,
+                                        crsY = 450.0,
+                                        hazardType = "fire"
+                                    )
+                                    hazardDeployFeedback = "🔥 West Stairwell Fire deployed! Graph model updated: all guests rerouted to East Exit B."
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = CrisisRed),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("🚨 WEST FIRE (X:130)", fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // Preset 2: Central Corridor Fire
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    repository.createDangerZone(
+                                        floor = 4,
+                                        label = "Central Hallway Active Fire",
+                                        severity = "critical",
+                                        radius = 60.0,
+                                        crsX = 460.0,
+                                        crsY = 450.0,
+                                        hazardType = "fire"
+                                    )
+                                    hazardDeployFeedback = "🔥 Central Hallway Fire deployed! Graph model updated: guests rerouted via North/South bypass."
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = CrisisRed),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("🔥 CENTER FIRE (X:460)", fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // Preset 3: East Corridor Smoke (Blocks Exit B)
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    repository.createDangerZone(
+                                        floor = 4,
+                                        label = "East Wing Dense Smoke (Exit B Blocked)",
+                                        severity = "high",
+                                        radius = 65.0,
+                                        crsX = 750.0,
+                                        crsY = 450.0,
+                                        hazardType = "smoke"
+                                    )
+                                    hazardDeployFeedback = "💨 East Wing Smoke deployed! Graph model updated: guests rerouted to West Exit A."
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningAmber),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("💨 EAST SMOKE (X:750)", fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    if (hazardDeployFeedback.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(SafeGreen.copy(alpha = 0.15f))
+                                .border(1.dp, SafeGreen.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                .padding(8.dp)
+                        ) {
+                            Text(
+                                text = hazardDeployFeedback,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    // Active Danger Zones Table & Clearance Controls
+                    if (dangerZones.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "ACTIVE HAZARD MARKERS (${dangerZones.size}):",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextSecondary
+                            )
+
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        repository.clearDangerZones(4)
+                                        hazardDeployFeedback = "✅ All hazard markers cleared. Floor graph restored to default state."
+                                    }
+                                }
+                            ) {
+                                Text("CLEAR ALL", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CrisisRed)
+                            }
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            dangerZones.forEach { zone ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(GlassSurface)
+                                        .border(1.dp, GlassBorder, RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = if (zone.hazardType == "smoke") Icons.Default.Air else Icons.Default.LocalFireDepartment,
+                                            contentDescription = null,
+                                            tint = if (zone.hazardType == "smoke") WarningAmber else CrisisRed,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Column {
+                                            Text(
+                                                text = zone.label,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = TextPrimary
+                                            )
+                                            Text(
+                                                text = "CRS (${zone.crsX.toInt()}, ${zone.crsY.toInt()}) • Radius: ${zone.radiusMeters.toInt()}m",
+                                                fontSize = 9.sp,
+                                                color = TextSecondary
+                                            )
+                                        }
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            scope.launch {
+                                                repository.deleteDangerZone(zone.id, 4)
+                                                hazardDeployFeedback = "Removed marker '${zone.label}' from Firestore."
+                                            }
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete",
+                                            tint = CrisisRed,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Tactical Floor Evacuation & Custom Map for Responders (with Tap-to-Drop Hazard Marker)
             TacticalEvacuationMap(
                 roomId = selectedRoomId,
                 floor = 4,
                 nodes = nodes,
-                floorPlanUrl = floorPlan?.imageUrl
+                dangerZones = dangerZones,
+                floorPlanUrl = floorPlan?.imageUrl,
+                onMapTap = { offset, crsX, crsY ->
+                    when (activeHazardTool) {
+                        "fire" -> {
+                            scope.launch {
+                                repository.createDangerZone(
+                                    floor = 4,
+                                    label = "Active Fire Zone (${crsX.toInt()}, ${crsY.toInt()})",
+                                    severity = "critical",
+                                    radius = 55.0,
+                                    crsX = crsX,
+                                    crsY = crsY,
+                                    hazardType = "fire"
+                                )
+                                hazardDeployFeedback = "🔥 Fire Zone dropped at CRS (${crsX.toInt()}, ${crsY.toInt()})! Firestore updated in real time; all crossing guest polylines recalculated."
+                            }
+                        }
+                        "smoke" -> {
+                            scope.launch {
+                                repository.createDangerZone(
+                                    floor = 4,
+                                    label = "Dense Smoke Zone (${crsX.toInt()}, ${crsY.toInt()})",
+                                    severity = "high",
+                                    radius = 55.0,
+                                    crsX = crsX,
+                                    crsY = crsY,
+                                    hazardType = "smoke"
+                                )
+                                hazardDeployFeedback = "💨 Smoke Zone dropped at CRS (${crsX.toInt()}, ${crsY.toInt()})! Floor graph updated in Firestore."
+                            }
+                        }
+                        "inspect" -> {
+                            // Find closest room
+                            val col = (((crsX - 150.0) / 120.0).toInt()).coerceIn(0, 5)
+                            val isNorth = crsY >= 450.0
+                            val tappedRoom = if (isNorth) 401 + col else 407 + col
+                            selectedRoomId = tappedRoom.toString()
+                            hazardDeployFeedback = "Inspecting Room $selectedRoomId"
+                        }
+                    }
+                }
             )
 
             Spacer(modifier = Modifier.height(16.dp))

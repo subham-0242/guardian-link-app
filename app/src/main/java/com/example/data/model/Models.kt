@@ -79,12 +79,15 @@ data class Incident(
 @Entity(tableName = "danger_zones")
 data class DangerZone(
     @PrimaryKey val id: String,
-    val floor: Int,
-    val label: String,
-    val severity: String, // "low", "medium", "high", "critical"
-    val lat: Double,
-    val lng: Double,
-    val radiusMeters: Double,
+    val floor: Int = 4,
+    val label: String = "Fire Hazard Zone",
+    val severity: String = "critical", // "low", "medium", "high", "critical"
+    val lat: Double = 37.7749,
+    val lng: Double = -122.4194,
+    val crsX: Double = 150.0,
+    val crsY: Double = 450.0,
+    val radiusMeters: Double = 55.0,
+    val hazardType: String = "fire", // "fire", "smoke", "blockage"
     val active: Boolean = true,
     val updatedAt: String = ""
 )

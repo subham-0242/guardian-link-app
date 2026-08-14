@@ -69,8 +69,17 @@ interface DangerZoneDao {
     @Query("SELECT * FROM danger_zones WHERE active = 1")
     fun getActiveDangerZones(): Flow<List<DangerZone>>
 
+    @Query("SELECT * FROM danger_zones WHERE floor = :floor AND active = 1")
+    fun getDangerZonesForFloor(floor: Int): Flow<List<DangerZone>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(zone: DangerZone)
+
+    @Query("DELETE FROM danger_zones WHERE id = :id")
+    suspend fun deleteById(id: String)
+
+    @Query("DELETE FROM danger_zones WHERE floor = :floor")
+    suspend fun clearDangerZones(floor: Int)
 }
 
 @Dao

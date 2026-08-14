@@ -365,6 +365,7 @@ class EmergencyRepository(context: Context) {
     fun getAllBroadcasts(): Flow<List<Broadcast>> = broadcastDao.getRecentBroadcasts()
     fun getBroadcastsForFloor(floor: Int): Flow<List<Broadcast>> = broadcastDao.getBroadcastsForFloor(floor)
     fun getActiveDangerZones(): Flow<List<DangerZone>> = dangerZoneDao.getActiveDangerZones()
+    fun getDangerZonesForFloor(floor: Int): Flow<List<DangerZone>> = dangerZoneDao.getDangerZonesForFloor(floor)
     fun getAllIncidents(): Flow<List<Incident>> = incidentDao.getAllIncidents()
     fun getFloorNodes(floor: Int): Flow<List<FloorNode>> = floorNodeDao.getNodesForFloor(floor)
     fun getFloorPlan(floor: Int): Flow<FloorPlan?> = floorPlanDao.getFloorPlan(floor)
@@ -397,21 +398,42 @@ class EmergencyRepository(context: Context) {
         FirebaseRemoteManager.addMemoryBroadcast(bc)
     }
 
-    suspend fun createDangerZone(floor: Int, label: String, severity: String, radius: Double) {
+    suspend fun createDangerZone(
+        floor: Int,
+        label: String,
+        severity: String = "critical",
+        radius: Double = 55.0,
+        crsX: Double = 150.0,
+        crsY: Double = 450.0,
+        hazardType: String = "fire"
+    ) {
         val iso = nowIso()
         val dz = DangerZone(
-            id = "dz_${UUID.randomUUID()}",
+            id = "dz_${UUID.randomUUID().toString().take(6)}",
             floor = floor,
             label = label,
             severity = severity,
             lat = 37.7749 + (floor * 0.0001),
             lng = -122.4194 + (floor * 0.0001),
+            crsX = crsX,
+            crsY = crsY,
             radiusMeters = radius,
+            hazardType = hazardType,
             active = true,
             updatedAt = iso
         )
         dangerZoneDao.insertOrUpdate(dz)
         FirebaseRemoteManager.addMemoryDangerZone(dz)
+    }
+
+    suspend fun deleteDangerZone(id: String, floor: Int) {
+        dangerZoneDao.deleteById(id)
+        FirebaseRemoteManager.removeMemoryDangerZone(id)
+    }
+
+    suspend fun clearDangerZones(floor: Int) {
+        dangerZoneDao.clearDangerZones(floor)
+        FirebaseRemoteManager.clearMemoryDangerZones(floor)
     }
 
     suspend fun saveFloorPlan(floor: Int, url: String) {

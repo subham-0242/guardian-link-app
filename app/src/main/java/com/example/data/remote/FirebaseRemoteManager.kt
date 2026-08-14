@@ -74,7 +74,20 @@ object FirebaseRemoteManager {
 
     fun addMemoryDangerZone(zone: DangerZone) {
         val current = _memoryDangerZones.value.toMutableList()
+        current.removeAll { it.id == zone.id }
         current.add(0, zone)
+        _memoryDangerZones.value = current
+    }
+
+    fun removeMemoryDangerZone(id: String) {
+        val current = _memoryDangerZones.value.toMutableList()
+        current.removeAll { it.id == id }
+        _memoryDangerZones.value = current
+    }
+
+    fun clearMemoryDangerZones(floor: Int) {
+        val current = _memoryDangerZones.value.toMutableList()
+        current.removeAll { it.floor == floor }
         _memoryDangerZones.value = current
     }
 

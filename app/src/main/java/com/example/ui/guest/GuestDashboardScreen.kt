@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -89,7 +90,17 @@ fun GuestDashboardScreen(
     val broadcasts by repository.getBroadcastsForFloor(4).collectAsState(initial = emptyList())
     val messages by repository.getChatMessagesForRoom(roomId).collectAsState(initial = emptyList())
     val nodes by repository.getFloorNodes(4).collectAsState(initial = emptyList())
+    val dangerZones by repository.getDangerZonesForFloor(4).collectAsState(initial = emptyList())
     val floorPlan by repository.getFloorPlan(4).collectAsState(initial = null)
+
+    val calculatedRoute = remember(roomId, dangerZones, nodes) {
+        com.example.util.FloorRoutingEngine.calculateEscapeRoute(
+            roomId = roomId,
+            floor = 4,
+            dangerZones = dangerZones,
+            customNodes = nodes
+        )
+    }
 
     var isSosActive by remember { mutableStateOf(false) }
     var selectedLanguage by remember { mutableStateOf("Spanish") }
@@ -212,6 +223,245 @@ fun GuestDashboardScreen(
             ActionBanner()
 
             Spacer(modifier = Modifier.height(14.dp))
+
+            // Tactical Floor Evacuation Map with Real-Time Hazard Zones
+            TacticalEvacuationMap(
+                roomId = roomId,
+                floor = 4,
+                nodes = nodes,
+                dangerZones = dangerZones,
+                floorPlanUrl = floorPlan?.imageUrl
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Crisis Action Buttons (I AM SAFE vs SEND SOS)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // I AM SAFE Button
+                Button(
+                    onClick = {
+                        isSosActive = false
+                        scope.launch {
+                            repository.triggerSafe(roomId, 4)
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(64.dp)
+                        .testTag("i_am_safe_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = SafeGreen, contentColor = Color.White),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "I AM SAFE",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                        Text(
+                            text = "Resolve Alert",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+
+                // SEND SOS Button
+                Button(
+                    onClick = {
+                        isSosActive = true
+                        scope.launch {
+                            repository.triggerSos(roomId, 4, "SOS Distress Flagged in Room $roomId. Heavy smoke in corridor.")
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(64.dp)
+                        .testTag("send_sos_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = CrisisRed, contentColor = Color.White),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Emergency,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "SEND SOS",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                        Text(
+                            text = "Request Rescue",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Multimodal Media Capture (Video & Audio)
+            VoiceMediaRecorder(
+                onMediaCaptured = { url, type ->
+                    scope.launch {
+                        repository.attachMedia(roomId, 4, url, type)
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Guest Comms Drawer
+            GuestCommsDrawer(
+                roomId = roomId,
+                messages = messages,
+                targetLanguage = selectedLanguage,
+                onSendMessage = { text ->
+                    scope.launch {
+                        repository.sendChatMessage(roomId, "guest", text, selectedLanguage)
+                    }
+                },
+                onSendChipStatus = { chip ->
+                    scope.launch {
+                        repository.sendChatMessage(roomId, "guest", "Status Tagged: $chip", selectedLanguage)
+                        repository.triggerSos(roomId, 4, "Status Chip: $chip", listOf(chip))
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Real-Time Evacuation Route Recalculation Alert Banner
+            if (calculatedRoute.isRerouted) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("dynamic_reroute_alert_card")
+                        .clip(RoundedCornerShape(14.dp))
+                        .border(1.5.dp, WarningAmber, RoundedCornerShape(14.dp)),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(WarningAmber.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "Reroute Alert",
+                                        tint = WarningAmber,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "PATH AUTOMATICALLY RECALCULATED",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = WarningAmber
+                                    )
+                                    Text(
+                                        text = "Fire / Smoke zone detected on default corridor",
+                                        fontSize = 9.5.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(WarningAmber)
+                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = "REROUTED",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            calculatedRoute.navigationSteps.forEach { step ->
+                                Text(
+                                    text = step,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (step.contains("⚠️")) CrisisRed else TextPrimary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Safe Egress: ${calculatedRoute.targetExitName} (~${calculatedRoute.estimatedDistanceMeters.toInt()}m)",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SafeGreen
+                            )
+
+                            OutlinedButton(
+                                onClick = {
+                                    val announcement = "Attention. Hazard detected on your corridor. Escape route recalculated to ${calculatedRoute.targetExitName}."
+                                    ttsHelper.speak(announcement, selectedLanguage)
+                                },
+                                modifier = Modifier.height(32.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = TacticalCyan),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("READ PATH", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
 
             // Mass Emergency Broadcast / PA System Alert Card
             val isFloor4Targeted = latestBroadcast?.targetFloor == 4
@@ -381,135 +631,6 @@ fun GuestDashboardScreen(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Tactical Floor Evacuation Map
-            TacticalEvacuationMap(
-                roomId = roomId,
-                floor = 4,
-                nodes = nodes,
-                floorPlanUrl = floorPlan?.imageUrl
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Crisis Action Buttons (I AM SAFE vs SEND SOS)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // I AM SAFE Button
-                Button(
-                    onClick = {
-                        isSosActive = false
-                        scope.launch {
-                            repository.triggerSafe(roomId, 4)
-                        }
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(64.dp)
-                        .testTag("i_am_safe_button"),
-                    colors = ButtonDefaults.buttonColors(containerColor = SafeGreen, contentColor = Color.White),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "I AM SAFE",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
-                        Text(
-                            text = "Resolve Alert",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White.copy(alpha = 0.8f)
-                        )
-                    }
-                }
-
-                // SEND SOS Button
-                Button(
-                    onClick = {
-                        isSosActive = true
-                        scope.launch {
-                            repository.triggerSos(roomId, 4, "SOS Distress Flagged in Room $roomId. Heavy smoke in corridor.")
-                        }
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(64.dp)
-                        .testTag("send_sos_button"),
-                    colors = ButtonDefaults.buttonColors(containerColor = CrisisRed, contentColor = Color.White),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Emergency,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "SEND SOS",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
-                        Text(
-                            text = "Request Rescue",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White.copy(alpha = 0.8f)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Multimodal Media Capture (Video & Audio)
-            VoiceMediaRecorder(
-                onMediaCaptured = { url, type ->
-                    scope.launch {
-                        repository.attachMedia(roomId, 4, url, type)
-                    }
-                }
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Guest Comms Drawer
-            GuestCommsDrawer(
-                roomId = roomId,
-                messages = messages,
-                targetLanguage = selectedLanguage,
-                onSendMessage = { text ->
-                    scope.launch {
-                        repository.sendChatMessage(roomId, "guest", text, selectedLanguage)
-                    }
-                },
-                onSendChipStatus = { chip ->
-                    scope.launch {
-                        repository.sendChatMessage(roomId, "guest", "Status Tagged: $chip", selectedLanguage)
-                        repository.triggerSos(roomId, 4, "Status Chip: $chip", listOf(chip))
-                    }
-                }
-            )
         }
     }
 }
