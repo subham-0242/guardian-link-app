@@ -227,6 +227,11 @@ fun GuestCommsDrawer(
                                 )
                                 .padding(10.dp)
                         ) {
+                            val liveTranslation = remember(msg.text, targetLanguage) {
+                                if (targetLanguage.equals("English", ignoreCase = true)) null
+                                else com.example.util.EmergencyTranslator.translate(msg.text, targetLanguage)
+                            }
+                            val textToPlay = liveTranslation ?: msg.text
                             Column {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -245,7 +250,6 @@ fun GuestCommsDrawer(
                                     )
 
                                     // TTS Voice Conversion Button in Responder Language
-                                    val textToPlay = msg.translatedText ?: msg.text
                                     Row(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
@@ -254,7 +258,7 @@ fun GuestCommsDrawer(
                                                 ttsHelper.speak(textToPlay, targetLanguage)
                                             }
                                             .padding(horizontal = 6.dp, vertical = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                            verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.VolumeUp,
@@ -279,7 +283,7 @@ fun GuestCommsDrawer(
                                     color = TextPrimary
                                 )
 
-                                if (!msg.translatedText.isNullOrBlank()) {
+                                if (!liveTranslation.isNullOrBlank() && !liveTranslation.equals(msg.text, ignoreCase = true)) {
                                     Spacer(modifier = Modifier.height(3.dp))
                                     Box(
                                         modifier = Modifier
@@ -289,7 +293,7 @@ fun GuestCommsDrawer(
                                             .padding(6.dp)
                                     ) {
                                         Text(
-                                            text = "🌐 TRANSLATED ($targetLanguage): ${msg.translatedText}",
+                                            text = "🌐 TRANSLATED ($targetLanguage): $liveTranslation",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             color = SafeGreen

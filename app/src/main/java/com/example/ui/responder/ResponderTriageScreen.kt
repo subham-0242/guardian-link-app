@@ -908,6 +908,11 @@ fun ResponderTriageScreen(
                                         .border(1.dp, if (isResponder) CrisisRed else TacticalCyan, RoundedCornerShape(10.dp))
                                         .padding(8.dp)
                                 ) {
+                                    val liveTranslation = remember(msg.text, responderTargetLang) {
+                                        if (responderTargetLang.equals("English", ignoreCase = true)) null
+                                        else com.example.util.EmergencyTranslator.translate(msg.text, responderTargetLang)
+                                    }
+                                    val ttsText = liveTranslation ?: msg.text
                                     Column {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
@@ -921,7 +926,6 @@ fun ResponderTriageScreen(
                                                 color = if (isResponder) CrisisRed else TacticalCyan
                                             )
 
-                                            val ttsText = msg.translatedText ?: msg.text
                                             Row(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(6.dp))
@@ -950,10 +954,10 @@ fun ResponderTriageScreen(
 
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(text = msg.text, fontSize = 12.sp, color = TextPrimary)
-                                        if (!msg.translatedText.isNullOrBlank()) {
+                                        if (!liveTranslation.isNullOrBlank() && !liveTranslation.equals(msg.text, ignoreCase = true)) {
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
-                                                text = "🌐 Translated ($responderTargetLang): ${msg.translatedText}",
+                                                text = "🌐 Translated ($responderTargetLang): $liveTranslation",
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = TacticalCyan

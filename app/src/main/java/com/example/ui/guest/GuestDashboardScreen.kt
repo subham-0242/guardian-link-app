@@ -119,22 +119,49 @@ fun GuestDashboardScreen(
     val latestBroadcast = broadcasts.firstOrNull()
     val rawBroadcastMsg = latestBroadcast?.message ?: "ATTENTION FLOOR 4: West stairwell blocked. Evacuate via East exit only."
 
-    LaunchedEffect(latestBroadcast, selectedLanguage) {
+    LaunchedEffect(rawBroadcastMsg, selectedLanguage) {
         if (selectedLanguage.equals("English", ignoreCase = true)) {
             translatedBroadcastText = rawBroadcastMsg
         } else {
+            translatedBroadcastText = com.example.util.EmergencyTranslator.translate(rawBroadcastMsg, selectedLanguage)
             try {
                 val translated = GeminiService.translateText(rawBroadcastMsg, selectedLanguage)
-                translatedBroadcastText = translated
+                if (translated.isNotBlank()) {
+                    translatedBroadcastText = translated
+                }
             } catch (e: Exception) {
-                translatedBroadcastText = rawBroadcastMsg
+                // Keep the offline translation
             }
         }
     }
 
     val scrollState = rememberScrollState()
 
-    val supportedLanguages = listOf("Spanish", "French", "Mandarin", "Arabic", "Russian", "Hindi", "Japanese", "Tamil")
+    val supportedLanguages = listOf("Spanish", "French", "Mandarin", "Arabic", "Russian", "Hindi", "Japanese", "Tamil", "German", "Tagalog")
+
+    val translatedActionBanner = remember(selectedLanguage) {
+        if (selectedLanguage.equals("English", ignoreCase = true)) {
+            "⚠️ STAY IN ROOM. DO NOT OPEN DOOR."
+        } else {
+            "⚠️ " + com.example.util.EmergencyTranslator.translate("STAY IN ROOM. DO NOT OPEN DOOR.", selectedLanguage).uppercase()
+        }
+    }
+    val safeBtnTitle = remember(selectedLanguage) {
+        if (selectedLanguage.equals("English", ignoreCase = true)) "I AM SAFE"
+        else com.example.util.EmergencyTranslator.translate("I AM SAFE", selectedLanguage).uppercase()
+    }
+    val safeBtnSub = remember(selectedLanguage) {
+        if (selectedLanguage.equals("English", ignoreCase = true)) "Resolve Alert"
+        else com.example.util.EmergencyTranslator.translate("Resolve Alert", selectedLanguage)
+    }
+    val sosBtnTitle = remember(selectedLanguage) {
+        if (selectedLanguage.equals("English", ignoreCase = true)) "SEND SOS"
+        else com.example.util.EmergencyTranslator.translate("SEND SOS", selectedLanguage).uppercase()
+    }
+    val sosBtnSub = remember(selectedLanguage) {
+        if (selectedLanguage.equals("English", ignoreCase = true)) "Request Rescue"
+        else com.example.util.EmergencyTranslator.translate("Request Rescue", selectedLanguage)
+    }
 
     Box(
         modifier = modifier
@@ -220,7 +247,7 @@ fun GuestDashboardScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Action Banner
-            ActionBanner()
+            ActionBanner(message = translatedActionBanner)
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -265,14 +292,14 @@ fun GuestDashboardScreen(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "I AM SAFE",
-                                fontSize = 16.sp,
+                                text = safeBtnTitle,
+                                fontSize = if (safeBtnTitle.length > 10) 13.sp else 16.sp,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 0.5.sp
                             )
                         }
                         Text(
-                            text = "Resolve Alert",
+                            text = safeBtnSub,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White.copy(alpha = 0.8f)
@@ -305,14 +332,14 @@ fun GuestDashboardScreen(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "SEND SOS",
-                                fontSize = 16.sp,
+                                text = sosBtnTitle,
+                                fontSize = if (sosBtnTitle.length > 10) 13.sp else 16.sp,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 0.5.sp
                             )
                         }
                         Text(
-                            text = "Request Rescue",
+                            text = sosBtnSub,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White.copy(alpha = 0.8f)

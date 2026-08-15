@@ -1,6 +1,7 @@
 package com.example.data.remote
 
 import com.example.BuildConfig
+import com.example.util.EmergencyTranslator
 import com.example.util.PiiScrubber
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,12 +15,12 @@ import java.util.concurrent.TimeUnit
 
 object GeminiService {
     private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    private const val MODEL_NAME = "gemini-3.5-flash"
+    private const val MODEL_NAME = "gemini-2.5-flash"
     private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
     suspend fun translateText(
@@ -27,15 +28,23 @@ object GeminiService {
         targetLanguage: String,
         sourceLanguage: String = "English"
     ): String = withContext(Dispatchers.IO) {
-        val apiKey = BuildConfig.GEMINI_API_KEY
         val scrubbed = PiiScrubber.scrub(text).scrubbedText
+        if (scrubbed.isBlank()) return@withContext ""
+        if (targetLanguage.equals(sourceLanguage, ignoreCase = true)) return@withContext scrubbed
 
+        val apiKey = BuildConfig.GEMINI_API_KEY
+
+        // If no user secret is configured, use offline Emergency Translation Engine
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-            return@withContext "[$targetLanguage]: $scrubbed"
+            return@withContext EmergencyTranslator.translate(
+                text = scrubbed,
+                targetLanguage = targetLanguage,
+                sourceLanguage = sourceLanguage
+            )
         }
 
         try {
-            val prompt = "Translate the following emergency text from $sourceLanguage to $targetLanguage accurately and concisely. Return ONLY the translated string without extra quotes or notes:\n\n$scrubbed"
+            val prompt = "Translate the following emergency message from $sourceLanguage to $targetLanguage accurately and naturally for disaster evacuation. Output ONLY the translated sentence without introductory phrases, quotes, or markdown:\n\n$scrubbed"
 
             val requestJson = JSONObject().apply {
                 put("contents", JSONArray().apply {
@@ -47,7 +56,7 @@ object GeminiService {
                 })
                 put("systemInstruction", JSONObject().apply {
                     put("parts", JSONArray().apply {
-                        put(JSONObject().put("text", "You are a real-time emergency responder translator. Never output PII, names, phone numbers or personal identifiers."))
+                        put(JSONObject().put("text", "You are an instantaneous multilingual emergency translation assistant for hotel disaster evacuations. Provide clear, precise, authoritative translations in the target language."))
                     })
                 })
             }
@@ -68,13 +77,16 @@ object GeminiService {
                     val parts = content?.optJSONArray("parts")
                     if (parts != null && parts.length() > 0) {
                         val translated = parts.getJSONObject(0).optString("text", "")
-                        if (translated.isNotBlank()) return@withContext translated.trim()
+                        if (translated.isNotBlank()) {
+                            return@withContext translated.trim().removeSurrounding("\"")
+                        }
                     }
                 }
             }
-            "[$targetLanguage]: $scrubbed"
+            // Fallback to high-reliability emergency translator
+            EmergencyTranslator.translate(scrubbed, targetLanguage, sourceLanguage)
         } catch (e: Exception) {
-            "[$targetLanguage]: $scrubbed"
+            EmergencyTranslator.translate(scrubbed, targetLanguage, sourceLanguage)
         }
     }
 
