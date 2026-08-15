@@ -103,7 +103,7 @@ fun GuestDashboardScreen(
     }
 
     var isSosActive by remember { mutableStateOf(false) }
-    var selectedLanguage by remember { mutableStateOf("Spanish") }
+    var selectedLanguage by remember { mutableStateOf("English") }
     var showLangPicker by remember { mutableStateOf(false) }
     var translatedBroadcastText by remember { mutableStateOf("") }
     var isPlayingPaAudio by remember { mutableStateOf(false) }
@@ -137,7 +137,7 @@ fun GuestDashboardScreen(
 
     val scrollState = rememberScrollState()
 
-    val supportedLanguages = listOf("Spanish", "French", "Mandarin", "Arabic", "Russian", "Hindi", "Japanese", "Tamil", "German", "Tagalog")
+    val supportedLanguages = listOf("English", "Spanish", "French", "Mandarin", "Arabic", "Russian", "Hindi", "Japanese", "Tamil", "German", "Tagalog")
 
     val translatedActionBanner = remember(selectedLanguage) {
         if (selectedLanguage.equals("English", ignoreCase = true)) {

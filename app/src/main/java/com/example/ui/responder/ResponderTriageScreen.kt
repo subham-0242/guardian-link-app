@@ -35,11 +35,13 @@ import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -123,13 +125,13 @@ fun ResponderTriageScreen(
     var hazardDeployFeedback by remember { mutableStateOf("") }
 
     var responderMsgInput by remember { mutableStateOf("") }
-    var responderTargetLang by remember { mutableStateOf("Spanish") }
+    var responderTargetLang by remember { mutableStateOf("English") }
     var showLangPicker by remember { mutableStateOf(false) }
     var piiCount by remember { mutableStateOf(0) }
     var aarGeneratedFile by remember { mutableStateOf<File?>(null) }
     var showAarDialog by remember { mutableStateOf(false) }
 
-    val supportedLanguages = listOf("Spanish", "French", "Mandarin", "Arabic", "Russian", "Hindi", "Japanese", "Tamil")
+    val supportedLanguages = listOf("English", "Spanish", "French", "Mandarin", "Arabic", "Russian", "Hindi", "Japanese", "Tamil", "German", "Tagalog")
 
     // Floor 4 Matrix Rooms (401-412)
     val roomList = (401..412).map { it.toString() }
@@ -881,34 +883,13 @@ fun ResponderTriageScreen(
                         }
                     }
 
-                    // Media Intel Banner for Selected Room
-                    val roomMediaIncident = incidents.firstOrNull { it.roomId == selectedRoomId && !it.mediaUrl.isNullOrBlank() }
-                    if (roomMediaIncident != null) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        if (roomMediaIncident.mediaType?.contains("video", ignoreCase = true) == true) {
-                            com.example.ui.components.TacticalVideoPlayer(
-                                videoUrl = roomMediaIncident.mediaUrl,
-                                roomId = selectedRoomId,
-                                durationSeconds = 5.0,
-                                isSuccess = true
-                            )
-                        } else {
-                            com.example.ui.components.TacticalAudioPlayer(
-                                audioUrl = roomMediaIncident.mediaUrl,
-                                roomId = selectedRoomId,
-                                durationSeconds = 5.0,
-                                isSuccess = true
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // Chat History for Selected Room
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(220.dp)
+                            .height(180.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(Color(0xFF0F172A))
                             .padding(8.dp),
@@ -916,17 +897,17 @@ fun ResponderTriageScreen(
                     ) {
                         items(messages.reversed()) { msg ->
                             val isResponder = msg.senderRole == "responder"
-                            val isMediaMsg = msg.mediaType != null || !msg.mediaUrl.isNullOrBlank() || msg.text.contains("upload", ignoreCase = true)
+                            val isMediaMsg = msg.mediaType != null || !msg.mediaUrl.isNullOrBlank() || msg.text.contains("upload", ignoreCase = true) || !msg.isUploadSuccessful
 
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                    .padding(vertical = 3.dp),
                                 contentAlignment = if (isResponder) Alignment.CenterEnd else Alignment.CenterStart
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .fillMaxWidth(if (isMediaMsg) 0.95f else 0.85f)
+                                        .fillMaxWidth(0.85f)
                                         .clip(RoundedCornerShape(10.dp))
                                         .background(if (isResponder) CrisisRed.copy(alpha = 0.25f) else TacticalCyan.copy(alpha = 0.25f))
                                         .border(1.dp, if (isResponder) CrisisRed else TacticalCyan, RoundedCornerShape(10.dp))
@@ -988,24 +969,28 @@ fun ResponderTriageScreen(
                                             )
                                         }
 
-                                        // MEDIA PLAYBACK: If upload succeeded, allow hearing/seeing. Otherwise only message.
-                                        if (msg.isUploadSuccessful && !msg.mediaUrl.isNullOrBlank()) {
-                                            Spacer(modifier = Modifier.height(6.dp))
-                                            if (msg.mediaType?.contains("video", ignoreCase = true) == true) {
-                                                com.example.ui.components.TacticalVideoPlayer(
-                                                    videoUrl = msg.mediaUrl,
-                                                    roomId = selectedRoomId,
-                                                    localUri = msg.localUri,
-                                                    durationSeconds = msg.durationSeconds ?: 5.0,
-                                                    isSuccess = true
+                                        // Clean subtle media tag in chat bubble (playback moved to separate bottom card)
+                                        if (isMediaMsg) {
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(if (msg.isUploadSuccessful) (if (msg.mediaType?.contains("video", ignoreCase = true) == true) CrisisRed.copy(alpha = 0.2f) else TacticalCyan.copy(alpha = 0.2f)) else CrisisRed.copy(alpha = 0.15f))
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (!msg.isUploadSuccessful) Icons.Default.Warning else (if (msg.mediaType?.contains("video", ignoreCase = true) == true) Icons.Default.Videocam else Icons.Default.Mic),
+                                                    contentDescription = null,
+                                                    tint = if (!msg.isUploadSuccessful) CrisisRed else (if (msg.mediaType?.contains("video", ignoreCase = true) == true) CrisisRed else TacticalCyan),
+                                                    modifier = Modifier.size(11.dp)
                                                 )
-                                            } else {
-                                                com.example.ui.components.TacticalAudioPlayer(
-                                                    audioUrl = msg.mediaUrl ?: msg.audioUrl,
-                                                    roomId = selectedRoomId,
-                                                    localUri = msg.localUri,
-                                                    durationSeconds = msg.durationSeconds ?: 5.0,
-                                                    isSuccess = true
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = if (!msg.isUploadSuccessful) "Upload Failed • See card below" else (if (msg.mediaType?.contains("video", ignoreCase = true) == true) "📹 Video Intel • Available in card below" else "🎙️ Audio Intel • Direct play below"),
+                                                    fontSize = 8.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
                                                 )
                                             }
                                         }
@@ -1066,6 +1051,50 @@ fun ResponderTriageScreen(
                             )
                         }
                     }
+
+                    // SEPARATE DEDICATED MEDIA INTEL CARD AT BOTTOM
+                    val roomMediaItems = remember(incidents, messages, selectedRoomId) {
+                        val list = mutableListOf<com.example.ui.components.RoomMediaItem>()
+                        // From chat messages
+                        messages.filter { it.mediaType != null || !it.mediaUrl.isNullOrBlank() || it.text.contains("upload", ignoreCase = true) || !it.isUploadSuccessful }.forEach { msg ->
+                            list.add(
+                                com.example.ui.components.RoomMediaItem(
+                                    id = msg.id,
+                                    roomId = selectedRoomId,
+                                    mediaUrl = msg.mediaUrl ?: msg.audioUrl,
+                                    mediaType = msg.mediaType ?: (if (msg.audioUrl != null) "audio" else "video"),
+                                    isSuccess = msg.isUploadSuccessful,
+                                    errorMessage = if (!msg.isUploadSuccessful) msg.text else null,
+                                    durationSeconds = msg.durationSeconds ?: 5.0,
+                                    localUri = msg.localUri,
+                                    timestamp = msg.timestamp
+                                )
+                            )
+                        }
+                        // From incidents
+                        incidents.filter { it.roomId == selectedRoomId && !it.mediaUrl.isNullOrBlank() }.forEach { inc ->
+                            if (list.none { it.mediaUrl == inc.mediaUrl }) {
+                                list.add(
+                                    com.example.ui.components.RoomMediaItem(
+                                        id = inc.id,
+                                        roomId = selectedRoomId,
+                                        mediaUrl = inc.mediaUrl,
+                                        mediaType = inc.mediaType ?: "video",
+                                        isSuccess = true,
+                                        durationSeconds = 5.0,
+                                        timestamp = System.currentTimeMillis()
+                                    )
+                                )
+                            }
+                        }
+                        list
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    com.example.ui.components.RoomMediaIntelCard(
+                        roomId = selectedRoomId,
+                        mediaItems = roomMediaItems
+                    )
                 }
             }
 

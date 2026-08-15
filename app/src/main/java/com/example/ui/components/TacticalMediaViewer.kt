@@ -1,10 +1,7 @@
 package com.example.ui.components
 
-import android.content.Context
 import android.media.MediaPlayer
-import android.net.Uri
 import android.util.Log
-import android.widget.FrameLayout
 import android.widget.VideoView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -23,7 +20,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,14 +30,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
@@ -53,8 +45,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,10 +52,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,8 +61,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -84,9 +70,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.ui.theme.CrisisRed
-import com.example.ui.theme.DarkCanvas
 import com.example.ui.theme.GlassBorder
-import com.example.ui.theme.GlassSurface
 import com.example.ui.theme.SafeGreen
 import com.example.ui.theme.SurfaceCard
 import com.example.ui.theme.TacticalCyan
@@ -94,12 +78,633 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.WarningAmber
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * Tactical Audio Player Component
- * Plays audio if upload was successful. Otherwise displays only the failure text message.
+ * Encapsulates an uploaded media item for tactical viewing.
+ */
+data class RoomMediaItem(
+    val id: String,
+    val roomId: String,
+    val mediaUrl: String?,
+    val mediaType: String, // "audio" or "video"
+    val isSuccess: Boolean = true,
+    val errorMessage: String? = null,
+    val durationSeconds: Double = 5.0,
+    val localUri: String? = null,
+    val timestamp: Long = System.currentTimeMillis(),
+    val title: String? = null
+)
+
+/**
+ * Tactical Media Card displayed at the bottom of Responder Triage.
+ * - Video: Click to open in Full Screen and play automatically.
+ * - Audio: Plays directly within the card with live wave visualizer and controls.
+ * - Failed uploads: Shows only the failure message.
+ */
+@Composable
+fun RoomMediaIntelCard(
+    roomId: String,
+    mediaItems: List<RoomMediaItem>,
+    modifier: Modifier = Modifier
+) {
+    var fullscreenVideoItem by remember { mutableStateOf<RoomMediaItem?>(null) }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("room_media_intel_card_${roomId}")
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.2.dp, TacticalCyan.copy(alpha = 0.5f), RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = SurfaceCard)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Card Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(TacticalCyan.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Videocam,
+                            contentDescription = "Media Intel",
+                            tint = TacticalCyan,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "ROOM $roomId ATTACHED MEDIA & SURVEILLANCE",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                            color = TacticalCyan
+                        )
+                        Text(
+                            text = "Audio plays directly • Click video to view Full Screen",
+                            fontSize = 9.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                val successfulCount = mediaItems.count { it.isSuccess && !it.mediaUrl.isNullOrBlank() }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (successfulCount > 0) SafeGreen.copy(alpha = 0.2f) else WarningAmber.copy(alpha = 0.2f))
+                        .border(1.dp, if (successfulCount > 0) SafeGreen.copy(alpha = 0.5f) else WarningAmber.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "$successfulCount FEED${if (successfulCount != 1) "S" else ""}",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (successfulCount > 0) SafeGreen else WarningAmber
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (mediaItems.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF0F172A))
+                        .padding(14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No media files uploaded from Room $roomId yet.",
+                        fontSize = 11.sp,
+                        color = TextSecondary
+                    )
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    mediaItems.forEach { item ->
+                        val isVideo = item.mediaType.contains("video", ignoreCase = true)
+                        if (!item.isSuccess || item.mediaUrl.isNullOrBlank()) {
+                            // FAILED UPLOAD: display failure message only
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(CrisisRed.copy(alpha = 0.12f))
+                                    .border(1.dp, CrisisRed.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                                    .padding(10.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "Upload Failed",
+                                        tint = CrisisRed,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = item.errorMessage ?: "Upload of ${item.mediaType} from Room $roomId failed. No media stream available.",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        } else if (isVideo) {
+                            // VIDEO: Clickable card that triggers fullscreen playback
+                            TacticalVideoThumbnailCard(
+                                item = item,
+                                onClick = { fullscreenVideoItem = item }
+                            )
+                        } else {
+                            // AUDIO: Plays directly inside the card
+                            TacticalAudioPlayer(
+                                audioUrl = item.mediaUrl,
+                                roomId = item.roomId,
+                                localUri = item.localUri,
+                                durationSeconds = item.durationSeconds,
+                                isSuccess = true
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Full Screen Video Dialog when clicked
+    fullscreenVideoItem?.let { videoItem ->
+        TacticalFullscreenVideoDialog(
+            item = videoItem,
+            onDismiss = { fullscreenVideoItem = null }
+        )
+    }
+}
+
+/**
+ * Clickable Tactical Video Preview Card.
+ * Clicking this opens the video in full screen and starts playing.
+ */
+@Composable
+fun TacticalVideoThumbnailCard(
+    item: RoomMediaItem,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF020617))
+            .border(1.5.dp, CrisisRed.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .testTag("video_intel_thumbnail_${item.roomId}")
+            .padding(12.dp)
+    ) {
+        Column {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(CrisisRed.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Videocam,
+                            contentDescription = "Video Feed",
+                            tint = CrisisRed,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "VIDEO NOTE • ROOM ${item.roomId}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = CrisisRed
+                        )
+                        Text(
+                            text = "Duration: ${String.format(java.util.Locale.US, "%.1f", item.durationSeconds)}s • Cloudinary Verified",
+                            fontSize = 8.5.sp,
+                            color = SafeGreen
+                        )
+                    }
+                }
+
+                // Click to play full screen badge
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(CrisisRed.copy(alpha = 0.25f))
+                        .border(1.dp, CrisisRed.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Fullscreen,
+                        contentDescription = "Fullscreen",
+                        tint = CrisisRed,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "CLICK FOR FULL SCREEN",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Thumbnail / Frame Viewport
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF0F172A))
+                    .border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                // Tactical Reticle
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val w = size.width
+                    val h = size.height
+
+                    // Grid lines
+                    drawLine(
+                        color = TacticalCyan.copy(alpha = 0.2f),
+                        start = Offset(0f, h / 2),
+                        end = Offset(w, h / 2),
+                        strokeWidth = 1f,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
+                    )
+                    drawLine(
+                        color = TacticalCyan.copy(alpha = 0.2f),
+                        start = Offset(w / 2, 0f),
+                        end = Offset(w / 2, h),
+                        strokeWidth = 1f,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
+                    )
+
+                    // Corner brackets
+                    val bracketLen = 16f
+                    drawLine(CrisisRed, Offset(8f, 8f), Offset(8f + bracketLen, 8f), 2f)
+                    drawLine(CrisisRed, Offset(8f, 8f), Offset(8f, 8f + bracketLen), 2f)
+                    drawLine(CrisisRed, Offset(w - 8f, 8f), Offset(w - 8f - bracketLen, 8f), 2f)
+                    drawLine(CrisisRed, Offset(w - 8f, 8f), Offset(w - 8f, 8f + bracketLen), 2f)
+                    drawLine(CrisisRed, Offset(8f, h - 8f), Offset(8f + bracketLen, h - 8f), 2f)
+                    drawLine(CrisisRed, Offset(8f, h - 8f), Offset(8f, h - 8f - bracketLen), 2f)
+                    drawLine(CrisisRed, Offset(w - 8f, h - 8f), Offset(w - 8f - bracketLen, h - 8f), 2f)
+                    drawLine(CrisisRed, Offset(w - 8f, h - 8f), Offset(w - 8f, h - 8f - bracketLen), 2f)
+                }
+
+                // HUD Overlays
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "CAM-RM${item.roomId} [RECORDED]",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = CrisisRed
+                    )
+                    Text(
+                        text = "00:00 / 00:0${item.durationSeconds.toInt()}",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = Color.White
+                    )
+                }
+
+                // Large Central Play Action
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(CrisisRed)
+                            .border(2.dp, Color.White.copy(alpha = 0.8f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Play Video in Fullscreen",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "TAP TO PLAY FULL SCREEN",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Full Screen Video Player Dialog that auto-starts playing immediately.
+ */
+@Composable
+fun TacticalFullscreenVideoDialog(
+    item: RoomMediaItem,
+    onDismiss: () -> Unit
+) {
+    var isPlaying by remember { mutableStateOf(true) }
+    var currentProgressSeconds by remember { mutableFloatStateOf(0f) }
+    val totalSecs = item.durationSeconds.coerceIn(1.0, 10.0).toFloat()
+
+    val infiniteTransition = rememberInfiniteTransition(label = "fullscreen_scan")
+    val scanLineY by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = LinearEasing), RepeatMode.Restart),
+        label = "scanline"
+    )
+
+    // Playback progression timer
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) {
+            while (isPlaying && currentProgressSeconds < totalSecs) {
+                delay(100)
+                currentProgressSeconds += 0.1f
+            }
+            if (currentProgressSeconds >= totalSecs) {
+                currentProgressSeconds = 0f // loop
+            }
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF020617))
+                .padding(16.dp),
+            color = Color(0xFF020617)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Header Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(CrisisRed.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Videocam,
+                                contentDescription = null,
+                                tint = CrisisRed,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "FULL SCREEN SURVEILLANCE • ROOM ${item.roomId}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Cloudinary Stream • Playing Full Resolution",
+                                fontSize = 9.5.sp,
+                                color = SafeGreen
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1E293B))
+                    ) {
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = TextPrimary)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Big Video Viewport Frame with Tactical HUD & Scanlines
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF0B132B))
+                        .border(2.dp, CrisisRed, RoundedCornerShape(16.dp))
+                        .clickable { isPlaying = !isPlaying }
+                ) {
+                    // If local video exists, attach VideoView
+                    if (!item.localUri.isNullOrBlank() && File(item.localUri).exists()) {
+                        AndroidView(
+                            factory = { ctx ->
+                                VideoView(ctx).apply {
+                                    setVideoPath(item.localUri)
+                                    setOnPreparedListener { mp ->
+                                        mp.isLooping = true
+                                        if (isPlaying) start()
+                                    }
+                                }
+                            },
+                            update = { view ->
+                                if (isPlaying) view.start() else view.pause()
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    // Tactical HUD Overlays & Scanline
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val w = size.width
+                        val h = size.height
+
+                        // Center Crosshair
+                        drawLine(
+                            color = TacticalCyan.copy(alpha = 0.35f),
+                            start = Offset(0f, h / 2),
+                            end = Offset(w, h / 2),
+                            strokeWidth = 1.5f,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f))
+                        )
+                        drawLine(
+                            color = TacticalCyan.copy(alpha = 0.35f),
+                            start = Offset(w / 2, 0f),
+                            end = Offset(w / 2, h),
+                            strokeWidth = 1.5f,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f))
+                        )
+
+                        // Corner targeting brackets
+                        val bLen = 30f
+                        drawLine(CrisisRed, Offset(16f, 16f), Offset(16f + bLen, 16f), 3f)
+                        drawLine(CrisisRed, Offset(16f, 16f), Offset(16f, 16f + bLen), 3f)
+                        drawLine(CrisisRed, Offset(w - 16f, 16f), Offset(w - 16f - bLen, 16f), 3f)
+                        drawLine(CrisisRed, Offset(w - 16f, 16f), Offset(w - 16f, 16f + bLen), 3f)
+                        drawLine(CrisisRed, Offset(16f, h - 16f), Offset(16f + bLen, h - 16f), 3f)
+                        drawLine(CrisisRed, Offset(16f, h - 16f), Offset(16f, h - 16f - bLen), 3f)
+                        drawLine(CrisisRed, Offset(w - 16f, h - 16f), Offset(w - 16f - bLen, h - 16f), 3f)
+                        drawLine(CrisisRed, Offset(w - 16f, h - 16f), Offset(w - 16f, h - 16f - bLen), 3f)
+
+                        // Animated scanning laser line
+                        if (isPlaying) {
+                            drawLine(
+                                color = CrisisRed.copy(alpha = 0.6f),
+                                start = Offset(0f, h * scanLineY),
+                                end = Offset(w, h * scanLineY),
+                                strokeWidth = 3f
+                            )
+                        }
+                    }
+
+                    // Top HUD Telemetry
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "🔴 LIVE FEED RM-${item.roomId}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace,
+                            color = CrisisRed
+                        )
+                        Text(
+                            text = "${String.format(java.util.Locale.US, "00:%02d", currentProgressSeconds.toInt())} / ${String.format(java.util.Locale.US, "00:%02d", totalSecs.toInt())}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace,
+                            color = Color.White
+                        )
+                    }
+
+                    // Play/Pause Overlay indicator
+                    if (!isPlaying) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .size(70.dp)
+                                .clip(CircleShape)
+                                .background(CrisisRed.copy(alpha = 0.9f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(40.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Bottom Timeline and Controls
+                Column {
+                    LinearProgressIndicator(
+                        progress = { (currentProgressSeconds / totalSecs).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(CircleShape),
+                        color = CrisisRed,
+                        trackColor = Color(0xFF1E293B)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = { isPlaying = !isPlaying },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = if (isPlaying) CrisisRed else TacticalCyan),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isPlaying) "PAUSE VIDEO" else "RESUME PLAYBACK",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        Button(
+                            onClick = onDismiss,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("CLOSE", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Direct In-Card Tactical Audio Player Component
+ * Plays audio directly within the card with live wave visualizer and controls.
  */
 @Composable
 fun TacticalAudioPlayer(
@@ -111,7 +716,6 @@ fun TacticalAudioPlayer(
     isSuccess: Boolean = true,
     errorMessage: String? = null
 ) {
-    val context = LocalContext.current
     val isUploadValid = isSuccess && !audioUrl.isNullOrBlank()
 
     if (!isUploadValid) {
@@ -145,7 +749,7 @@ fun TacticalAudioPlayer(
         return
     }
 
-    // --- SUCCESSFUL AUDIO UPLOAD: Tactical Interactive Player ---
+    // --- SUCCESSFUL AUDIO UPLOAD: Direct In-Card Player ---
     var isPlaying by remember { mutableStateOf(false) }
     var currentProgressSeconds by remember { mutableFloatStateOf(0f) }
     val totalSecs = durationSeconds.coerceIn(1.0, 10.0).toFloat()
@@ -192,7 +796,6 @@ fun TacticalAudioPlayer(
     // Playback loop controller
     LaunchedEffect(isPlaying) {
         if (isPlaying) {
-            // Attempt real MediaPlayer initialization
             try {
                 val mp = MediaPlayer()
                 if (!localUri.isNullOrBlank() && File(localUri).exists()) {
@@ -211,10 +814,9 @@ fun TacticalAudioPlayer(
                 }
                 mediaPlayer = mp
             } catch (e: Exception) {
-                Log.w("TacticalAudioPlayer", "Using fallback audio playback timer: ${e.message}")
+                Log.w("TacticalAudioPlayer", "Audio player fallback: ${e.message}")
             }
 
-            // Fallback timer loop
             while (isPlaying && currentProgressSeconds < totalSecs) {
                 delay(100)
                 currentProgressSeconds += 0.1f
@@ -274,7 +876,7 @@ fun TacticalAudioPlayer(
                             color = TacticalCyan
                         )
                         Text(
-                            text = "Cloudinary Verified Audio Stream",
+                            text = "Direct Audio Stream • Ready to Play",
                             fontSize = 8.5.sp,
                             color = SafeGreen
                         )
@@ -290,7 +892,7 @@ fun TacticalAudioPlayer(
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = "READY TO HEAR",
+                        text = "DIRECT PLAY",
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
                         color = SafeGreen
@@ -320,7 +922,7 @@ fun TacticalAudioPlayer(
                     },
                     modifier = Modifier
                         .height(36.dp)
-                        .testTag("play_audio_note_button_${roomId}"),
+                        .testTag("play_audio_direct_button_${roomId}"),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isPlaying) CrisisRed else TacticalCyan,
                         contentColor = Color.White
@@ -334,7 +936,7 @@ fun TacticalAudioPlayer(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = if (isPlaying) "PAUSE" else "HEAR AUDIO",
+                        text = if (isPlaying) "PAUSE" else "PLAY AUDIO",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -408,8 +1010,8 @@ fun TacticalAudioPlayer(
 }
 
 /**
- * Tactical Video Player Component
- * Plays/shows video if upload was successful. Otherwise displays only the failure text message.
+ * Tactical Video Player wrapper for compatibility:
+ * Opens video in fullscreen on click and plays directly.
  */
 @Composable
 fun TacticalVideoPlayer(
@@ -421,455 +1023,31 @@ fun TacticalVideoPlayer(
     isSuccess: Boolean = true,
     errorMessage: String? = null
 ) {
-    val isUploadValid = isSuccess && !videoUrl.isNullOrBlank()
-
-    if (!isUploadValid) {
-        // When upload is NOT successful, display ONLY the message
-        Box(
-            modifier = modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
-                .background(CrisisRed.copy(alpha = 0.12f))
-                .border(1.dp, CrisisRed.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-                .padding(10.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = "Video Upload Failed",
-                    tint = CrisisRed,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = errorMessage ?: "Video upload from Room $roomId failed. No media stream available.",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
-            }
-        }
-        return
+    var showFullscreen by remember { mutableStateOf(false) }
+    val item = remember(videoUrl, roomId, localUri, durationSeconds, isSuccess, errorMessage) {
+        RoomMediaItem(
+            id = "vid_$roomId",
+            roomId = roomId,
+            mediaUrl = videoUrl,
+            mediaType = "video",
+            isSuccess = isSuccess,
+            errorMessage = errorMessage,
+            durationSeconds = durationSeconds,
+            localUri = localUri
+        )
     }
 
-    // --- SUCCESSFUL VIDEO UPLOAD: Tactical Video View & Player ---
-    var isPlaying by remember { mutableStateOf(false) }
-    var showFullscreenDialog by remember { mutableStateOf(false) }
-    var currentProgressSeconds by remember { mutableFloatStateOf(0f) }
-    val totalSecs = durationSeconds.coerceIn(1.0, 5.0).toFloat()
-
-    val infiniteTransition = rememberInfiniteTransition(label = "video_scan")
-    val scanLineY by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2000, easing = LinearEasing), RepeatMode.Restart),
-        label = "scanline"
+    TacticalVideoThumbnailCard(
+        item = item,
+        onClick = { showFullscreen = true },
+        modifier = modifier
     )
 
-    LaunchedEffect(isPlaying) {
-        if (isPlaying) {
-            while (isPlaying && currentProgressSeconds < totalSecs) {
-                delay(100)
-                currentProgressSeconds += 0.1f
-            }
-            if (currentProgressSeconds >= totalSecs) {
-                isPlaying = false
-                currentProgressSeconds = 0f
-            }
-        }
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF020617))
-            .border(1.5.dp, CrisisRed.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
-            .padding(12.dp)
-    ) {
-        Column {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(CrisisRed.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Videocam,
-                            contentDescription = "Video Feed",
-                            tint = CrisisRed,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            text = "TACTICAL VIDEO INTEL • ROOM $roomId",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = CrisisRed
-                        )
-                        Text(
-                            text = "Cloudinary Verified 5s Feed",
-                            fontSize = 8.5.sp,
-                            color = SafeGreen
-                        )
-                    }
-                }
-
-                // Expand Fullscreen Button
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(TacticalCyan.copy(alpha = 0.2f))
-                        .clickable { showFullscreenDialog = true }
-                        .padding(horizontal = 6.dp, vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Fullscreen,
-                        contentDescription = "Fullscreen",
-                        tint = TacticalCyan,
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text(
-                        text = "EXPAND",
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TacticalCyan
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Video Viewport Frame with Tactical Reticle
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF0F172A))
-                    .border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp))
-                    .clickable { isPlaying = !isPlaying }
-            ) {
-                // If local video exists, attempt AndroidView VideoView
-                if (!localUri.isNullOrBlank() && File(localUri).exists()) {
-                    AndroidView(
-                        factory = { ctx ->
-                            VideoView(ctx).apply {
-                                setVideoPath(localUri)
-                                setOnPreparedListener { mp ->
-                                    mp.isLooping = true
-                                    if (isPlaying) start()
-                                }
-                            }
-                        },
-                        update = { view ->
-                            if (isPlaying) view.start() else view.pause()
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-
-                // Tactical Reticle & Scanline Canvas
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val w = size.width
-                    val h = size.height
-
-                    // Grid lines
-                    drawLine(
-                        color = TacticalCyan.copy(alpha = 0.2f),
-                        start = Offset(0f, h / 2),
-                        end = Offset(w, h / 2),
-                        strokeWidth = 1f,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
-                    )
-                    drawLine(
-                        color = TacticalCyan.copy(alpha = 0.2f),
-                        start = Offset(w / 2, 0f),
-                        end = Offset(w / 2, h),
-                        strokeWidth = 1f,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
-                    )
-
-                    // Corner brackets
-                    val bracketLen = 20f
-                    // Top-Left
-                    drawLine(CrisisRed, Offset(10f, 10f), Offset(10f + bracketLen, 10f), 2f)
-                    drawLine(CrisisRed, Offset(10f, 10f), Offset(10f, 10f + bracketLen), 2f)
-                    // Top-Right
-                    drawLine(CrisisRed, Offset(w - 10f, 10f), Offset(w - 10f - bracketLen, 10f), 2f)
-                    drawLine(CrisisRed, Offset(w - 10f, 10f), Offset(w - 10f, 10f + bracketLen), 2f)
-                    // Bottom-Left
-                    drawLine(CrisisRed, Offset(10f, h - 10f), Offset(10f + bracketLen, h - 10f), 2f)
-                    drawLine(CrisisRed, Offset(10f, h - 10f), Offset(10f, h - 10f - bracketLen), 2f)
-                    // Bottom-Right
-                    drawLine(CrisisRed, Offset(w - 10f, h - 10f), Offset(w - 10f - bracketLen, h - 10f), 2f)
-                    drawLine(CrisisRed, Offset(w - 10f, h - 10f), Offset(w - 10f, h - 10f - bracketLen), 2f)
-
-                    // Moving scanline if playing
-                    if (isPlaying) {
-                        drawLine(
-                            color = TacticalCyan.copy(alpha = 0.4f),
-                            start = Offset(0f, h * scanLineY),
-                            end = Offset(w, h * scanLineY),
-                            strokeWidth = 2f
-                        )
-                    }
-                }
-
-                // HUD Overlays
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "CAM-RM$roomId [LIVE]",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        color = CrisisRed
-                    )
-                    Text(
-                        text = "REC 00:0${currentProgressSeconds.toInt()}:00",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        color = Color.White
-                    )
-                }
-
-                // Center Play Button Overlay
-                if (!isPlaying) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(CrisisRed.copy(alpha = 0.85f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Play Video",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Controls Bar
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                        if (isPlaying) {
-                            isPlaying = false
-                        } else {
-                            if (currentProgressSeconds >= totalSecs) {
-                                currentProgressSeconds = 0f
-                            }
-                            isPlaying = true
-                        }
-                    },
-                    modifier = Modifier
-                        .height(34.dp)
-                        .testTag("play_video_note_button_${roomId}"),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isPlaying) CrisisRed else TacticalCyan,
-                        contentColor = Color.White
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = if (isPlaying) "PAUSE" else "SEE VIDEO",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                LinearProgressIndicator(
-                    progress = { (currentProgressSeconds / totalSecs).coerceIn(0f, 1f) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(4.dp)
-                        .clip(CircleShape),
-                    color = CrisisRed,
-                    trackColor = Color(0xFF1E293B)
-                )
-
-                Text(
-                    text = "${String.format(java.util.Locale.US, "0:%02d", currentProgressSeconds.toInt())} / 0:0${totalSecs.toInt()}",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    color = TextPrimary
-                )
-            }
-        }
-    }
-
-    // Fullscreen Interactive Video Inspection Dialog
-    if (showFullscreenDialog) {
-        Dialog(
-            onDismissRequest = { showFullscreenDialog = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xFF020617))
-                    .padding(16.dp),
-                color = Color(0xFF020617)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Dialog Header
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Videocam,
-                                contentDescription = null,
-                                tint = CrisisRed,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "INCIDENT FEED • ROOM $roomId (FLOOR 4)",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Black,
-                                color = TextPrimary
-                            )
-                        }
-
-                        IconButton(onClick = { showFullscreenDialog = false }) {
-                            Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = TextPrimary)
-                        }
-                    }
-
-                    // Large Video Player Frame
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xFF0F172A))
-                            .border(2.dp, CrisisRed, RoundedCornerShape(14.dp))
-                            .clickable { isPlaying = !isPlaying }
-                    ) {
-                        if (!localUri.isNullOrBlank() && File(localUri).exists()) {
-                            AndroidView(
-                                factory = { ctx ->
-                                    VideoView(ctx).apply {
-                                        setVideoPath(localUri)
-                                        setOnPreparedListener { mp ->
-                                            mp.isLooping = true
-                                            if (isPlaying) start()
-                                        }
-                                    }
-                                },
-                                update = { view ->
-                                    if (isPlaying) view.start() else view.pause()
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-
-                        // Tactical Scanlines
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val w = size.width
-                            val h = size.height
-                            if (isPlaying) {
-                                drawLine(
-                                    color = TacticalCyan.copy(alpha = 0.5f),
-                                    start = Offset(0f, h * scanLineY),
-                                    end = Offset(w, h * scanLineY),
-                                    strokeWidth = 3f
-                                )
-                            }
-                        }
-
-                        if (!isPlaying) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .size(64.dp)
-                                    .clip(CircleShape)
-                                    .background(CrisisRed.copy(alpha = 0.9f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PlayArrow,
-                                    contentDescription = "Play",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(36.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Fullscreen Controls Bar
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(
-                            onClick = { isPlaying = !isPlaying },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = if (isPlaying) CrisisRed else TacticalCyan)
-                        ) {
-                            Icon(
-                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = null
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(if (isPlaying) "PAUSE VIDEO" else "PLAY FULL FEED", fontWeight = FontWeight.Bold)
-                        }
-
-                        Button(
-                            onClick = { showFullscreenDialog = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155))
-                        ) {
-                            Text("CLOSE", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
+    if (showFullscreen) {
+        TacticalFullscreenVideoDialog(
+            item = item,
+            onDismiss = { showFullscreen = false }
+        )
     }
 }
+
