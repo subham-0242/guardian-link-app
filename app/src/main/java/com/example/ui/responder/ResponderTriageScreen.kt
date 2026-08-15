@@ -881,13 +881,34 @@ fun ResponderTriageScreen(
                         }
                     }
 
+                    // Media Intel Banner for Selected Room
+                    val roomMediaIncident = incidents.firstOrNull { it.roomId == selectedRoomId && !it.mediaUrl.isNullOrBlank() }
+                    if (roomMediaIncident != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        if (roomMediaIncident.mediaType?.contains("video", ignoreCase = true) == true) {
+                            com.example.ui.components.TacticalVideoPlayer(
+                                videoUrl = roomMediaIncident.mediaUrl,
+                                roomId = selectedRoomId,
+                                durationSeconds = 5.0,
+                                isSuccess = true
+                            )
+                        } else {
+                            com.example.ui.components.TacticalAudioPlayer(
+                                audioUrl = roomMediaIncident.mediaUrl,
+                                roomId = selectedRoomId,
+                                durationSeconds = 5.0,
+                                isSuccess = true
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(14.dp))
 
                     // Chat History for Selected Room
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(140.dp)
+                            .height(220.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(Color(0xFF0F172A))
                             .padding(8.dp),
@@ -895,14 +916,17 @@ fun ResponderTriageScreen(
                     ) {
                         items(messages.reversed()) { msg ->
                             val isResponder = msg.senderRole == "responder"
+                            val isMediaMsg = msg.mediaType != null || !msg.mediaUrl.isNullOrBlank() || msg.text.contains("upload", ignoreCase = true)
+
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 3.dp),
+                                    .padding(vertical = 4.dp),
                                 contentAlignment = if (isResponder) Alignment.CenterEnd else Alignment.CenterStart
                             ) {
                                 Box(
                                     modifier = Modifier
+                                        .fillMaxWidth(if (isMediaMsg) 0.95f else 0.85f)
                                         .clip(RoundedCornerShape(10.dp))
                                         .background(if (isResponder) CrisisRed.copy(alpha = 0.25f) else TacticalCyan.copy(alpha = 0.25f))
                                         .border(1.dp, if (isResponder) CrisisRed else TacticalCyan, RoundedCornerShape(10.dp))
@@ -962,6 +986,28 @@ fun ResponderTriageScreen(
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = TacticalCyan
                                             )
+                                        }
+
+                                        // MEDIA PLAYBACK: If upload succeeded, allow hearing/seeing. Otherwise only message.
+                                        if (msg.isUploadSuccessful && !msg.mediaUrl.isNullOrBlank()) {
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            if (msg.mediaType?.contains("video", ignoreCase = true) == true) {
+                                                com.example.ui.components.TacticalVideoPlayer(
+                                                    videoUrl = msg.mediaUrl,
+                                                    roomId = selectedRoomId,
+                                                    localUri = msg.localUri,
+                                                    durationSeconds = msg.durationSeconds ?: 5.0,
+                                                    isSuccess = true
+                                                )
+                                            } else {
+                                                com.example.ui.components.TacticalAudioPlayer(
+                                                    audioUrl = msg.mediaUrl ?: msg.audioUrl,
+                                                    roomId = selectedRoomId,
+                                                    localUri = msg.localUri,
+                                                    durationSeconds = msg.durationSeconds ?: 5.0,
+                                                    isSuccess = true
+                                                )
+                                            }
                                         }
                                     }
                                 }

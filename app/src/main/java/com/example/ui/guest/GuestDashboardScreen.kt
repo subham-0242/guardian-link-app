@@ -352,9 +352,18 @@ fun GuestDashboardScreen(
 
             // Multimodal Media Capture (Video & Audio)
             VoiceMediaRecorder(
-                onMediaCaptured = { url, type ->
+                onMediaCaptured = { url, type, isSuccess, durationSecs, localUri, errorMsg ->
                     scope.launch {
-                        repository.attachMedia(roomId, 4, url, type)
+                        repository.attachMedia(
+                            roomId = roomId,
+                            floor = 4,
+                            mediaUrl = url,
+                            mediaType = type,
+                            isSuccess = isSuccess,
+                            errorMessage = errorMsg,
+                            durationSeconds = durationSecs,
+                            localUri = localUri
+                        )
                     }
                 }
             )

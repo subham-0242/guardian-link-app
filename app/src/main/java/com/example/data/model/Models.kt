@@ -143,5 +143,10 @@ data class ChatMessage(
     val text: String,
     val translatedText: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
-    val audioUrl: String? = null
+    val audioUrl: String? = null,
+    val mediaUrl: String? = null,
+    val mediaType: String? = null, // "audio", "video", "image"
+    val isUploadSuccessful: Boolean = true,
+    val durationSeconds: Double? = null,
+    val localUri: String? = null
 )

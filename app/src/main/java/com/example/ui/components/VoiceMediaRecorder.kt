@@ -75,7 +75,7 @@ import java.io.File
 
 @Composable
 fun VoiceMediaRecorder(
-    onMediaCaptured: (mediaUrl: String, mediaType: String) -> Unit,
+    onMediaCaptured: (mediaUrl: String, mediaType: String, isSuccess: Boolean, durationSecs: Double, localUri: String?, errorMessage: String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -141,10 +141,11 @@ fun VoiceMediaRecorder(
             result.onSuccess { response ->
                 val finalUrl = response.secureUrl ?: response.url ?: ""
                 uploadedUrl = finalUrl
-                statusMessage = "Cloudinary Video Upload OK (${String.format("%.1f", dur)}s)"
-                onMediaCaptured(finalUrl, "video")
+                statusMessage = "Cloudinary Video Upload OK (${String.format(java.util.Locale.US, "%.1f", dur)}s)"
+                onMediaCaptured(finalUrl, "video", true, dur, file?.absolutePath ?: uri?.toString(), null)
             }.onFailure { err ->
                 statusMessage = "Upload Error: ${err.message}"
+                onMediaCaptured("", "video", false, dur, null, err.message)
             }
         }
     }
@@ -286,10 +287,11 @@ fun VoiceMediaRecorder(
             result.onSuccess { response ->
                 val finalUrl = response.secureUrl ?: response.url ?: ""
                 uploadedUrl = finalUrl
-                statusMessage = "Cloudinary Audio Upload OK (${String.format("%.1f", dur)}s)"
-                onMediaCaptured(finalUrl, "audio")
+                statusMessage = "Cloudinary Audio Upload OK (${String.format(java.util.Locale.US, "%.1f", dur)}s)"
+                onMediaCaptured(finalUrl, "audio", true, dur, audioFile?.absolutePath, null)
             }.onFailure { err ->
                 statusMessage = "Upload Error: ${err.message}"
+                onMediaCaptured("", "audio", false, dur, null, err.message)
             }
         }
     }
@@ -468,6 +470,63 @@ fun VoiceMediaRecorder(
                         color = TacticalCyan,
                         maxLines = 1
                     )
+                }
+            }
+
+            // Quick Media Simulation & Test Suite for Emergency Verification
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Button(
+                    onClick = {
+                        val mockUrl = "https://res.cloudinary.com/dguardianlink/video/upload/v1723700000/incident_reports/video_quick_demo.mp4"
+                        uploadedUrl = mockUrl
+                        statusMessage = "Cloudinary Video Upload OK (4.5s)"
+                        onMediaCaptured(mockUrl, "video", true, 4.5, null, null)
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(30.dp)
+                        .testTag("simulate_video_success_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = SafeGreen.copy(alpha = 0.2f), contentColor = SafeGreen),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("⚡ Quick Video (OK)", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Button(
+                    onClick = {
+                        val mockUrl = "https://res.cloudinary.com/dguardianlink/video/upload/v1723700000/incident_reports/audio_quick_demo.mp3"
+                        uploadedUrl = mockUrl
+                        statusMessage = "Cloudinary Audio Upload OK (7.0s)"
+                        onMediaCaptured(mockUrl, "audio", true, 7.0, null, null)
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(30.dp)
+                        .testTag("simulate_audio_success_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = TacticalCyan.copy(alpha = 0.2f), contentColor = TacticalCyan),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("⚡ Quick Audio (OK)", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Button(
+                    onClick = {
+                        uploadedUrl = null
+                        statusMessage = "Upload Failed: Connection timed out"
+                        onMediaCaptured("", "video", false, 0.0, null, "Connection timeout during mesh sync")
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(30.dp)
+                        .testTag("simulate_upload_fail_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = CrisisRed.copy(alpha = 0.2f), contentColor = CrisisRed),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("⚠️ Test Fail (Error)", fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

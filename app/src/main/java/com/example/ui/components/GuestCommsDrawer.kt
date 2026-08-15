@@ -190,7 +190,7 @@ fun GuestCommsDrawer(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(160.dp)
+                    .height(200.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF0F172A))
                     .padding(8.dp),
@@ -199,6 +199,7 @@ fun GuestCommsDrawer(
                 items(messages.reversed()) { msg ->
                     val isUser = msg.senderRole == "guest"
                     val isSystem = msg.senderRole == "system"
+                    val isMediaMsg = msg.mediaType != null || !msg.mediaUrl.isNullOrBlank() || msg.text.contains("upload", ignoreCase = true)
 
                     Column(
                         modifier = Modifier
@@ -208,6 +209,7 @@ fun GuestCommsDrawer(
                     ) {
                         Box(
                             modifier = Modifier
+                                .fillMaxWidth(if (isMediaMsg) 0.95f else 0.85f)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
                                     when {
@@ -297,6 +299,28 @@ fun GuestCommsDrawer(
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             color = SafeGreen
+                                        )
+                                    }
+                                }
+
+                                // Media Playback in Comms Drawer
+                                if (msg.isUploadSuccessful && !msg.mediaUrl.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    if (msg.mediaType?.contains("video", ignoreCase = true) == true) {
+                                        TacticalVideoPlayer(
+                                            videoUrl = msg.mediaUrl,
+                                            roomId = roomId,
+                                            localUri = msg.localUri,
+                                            durationSeconds = msg.durationSeconds ?: 5.0,
+                                            isSuccess = true
+                                        )
+                                    } else {
+                                        TacticalAudioPlayer(
+                                            audioUrl = msg.mediaUrl ?: msg.audioUrl,
+                                            roomId = roomId,
+                                            localUri = msg.localUri,
+                                            durationSeconds = msg.durationSeconds ?: 5.0,
+                                            isSuccess = true
                                         )
                                     }
                                 }

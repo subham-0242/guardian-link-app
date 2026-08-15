@@ -266,25 +266,67 @@ class EmergencyRepository(context: Context) {
         FirebaseRemoteManager.addChatMessage(safeMsg)
     }
 
-    suspend fun attachMedia(roomId: String, floor: Int, mediaUrl: String, mediaType: String) {
+    suspend fun attachMedia(
+        roomId: String,
+        floor: Int,
+        mediaUrl: String,
+        mediaType: String,
+        isSuccess: Boolean = true,
+        errorMessage: String? = null,
+        durationSeconds: Double? = null,
+        localUri: String? = null
+    ) {
         val iso = nowIso()
-        val incident = Incident(
-            id = "inc_media_${UUID.randomUUID()}",
-            title = "$mediaType Submission from Room $roomId",
-            summary = "Multimodal $mediaType submitted by guest in Room $roomId.",
-            location = "Floor $floor, Room $roomId",
-            severity = "high",
-            status = "new",
-            trapped = 1,
-            sourceReportIds = "",
-            createdAt = iso,
-            updatedAt = iso,
-            roomId = roomId,
-            mediaUrl = mediaUrl,
-            mediaType = mediaType
-        )
-        incidentDao.insertOrUpdate(incident)
-        FirebaseRemoteManager.addMemoryIncident(incident)
+        val normalizedType = if (mediaType.contains("video", ignoreCase = true)) "Video" else "Audio"
+        if (isSuccess && mediaUrl.isNotBlank()) {
+            val incident = Incident(
+                id = "inc_media_${UUID.randomUUID()}",
+                title = "$normalizedType Submission from Room $roomId",
+                summary = "Multimodal $normalizedType note submitted by guest in Room $roomId (${String.format(java.util.Locale.US, "%.1f", durationSeconds ?: 5.0)}s).",
+                location = "Floor $floor, Room $roomId",
+                severity = "high",
+                status = "new",
+                trapped = 1,
+                sourceReportIds = "",
+                createdAt = iso,
+                updatedAt = iso,
+                roomId = roomId,
+                mediaUrl = mediaUrl,
+                mediaType = normalizedType.lowercase()
+            )
+            incidentDao.insertOrUpdate(incident)
+            FirebaseRemoteManager.addMemoryIncident(incident)
+
+            val chatMsg = ChatMessage(
+                id = UUID.randomUUID().toString(),
+                roomId = roomId,
+                senderRole = "guest",
+                text = "Uploaded $normalizedType note (${String.format(java.util.Locale.US, "%.1f", durationSeconds ?: 5.0)}s)",
+                timestamp = System.currentTimeMillis(),
+                audioUrl = if (normalizedType.equals("Audio", ignoreCase = true)) mediaUrl else null,
+                mediaUrl = mediaUrl,
+                mediaType = normalizedType.lowercase(),
+                isUploadSuccessful = true,
+                durationSeconds = durationSeconds,
+                localUri = localUri
+            )
+            FirebaseRemoteManager.addChatMessage(chatMsg)
+        } else {
+            val errorText = errorMessage ?: "Upload transfer failed"
+            val chatMsg = ChatMessage(
+                id = UUID.randomUUID().toString(),
+                roomId = roomId,
+                senderRole = "guest",
+                text = "⚠️ $normalizedType upload failed: $errorText",
+                timestamp = System.currentTimeMillis(),
+                mediaUrl = null,
+                mediaType = normalizedType.lowercase(),
+                isUploadSuccessful = false,
+                durationSeconds = durationSeconds,
+                localUri = null
+            )
+            FirebaseRemoteManager.addChatMessage(chatMsg)
+        }
     }
 
     suspend fun uploadAndAttachCloudinaryMedia(
