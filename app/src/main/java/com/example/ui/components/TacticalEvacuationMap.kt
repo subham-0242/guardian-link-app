@@ -144,19 +144,23 @@ fun TacticalEvacuationMap(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(
                         imageVector = Icons.Default.Map,
                         contentDescription = null,
                         tint = if (calculatedRoute.isRerouted) WarningAmber else TacticalCyan,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "TACTICAL FLOOR MAP • LEVEL 0$floor",
-                        fontSize = 12.5.sp,
+                        text = "FLOOR 0$floor BLUEPRINT",
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (calculatedRoute.isRerouted) WarningAmber else TacticalCyan
+                        color = if (calculatedRoute.isRerouted) WarningAmber else TacticalCyan,
+                        maxLines = 1
                     )
                 }
 
@@ -173,22 +177,24 @@ fun TacticalEvacuationMap(
                             imageVector = Icons.Default.AltRoute,
                             contentDescription = null,
                             tint = WarningAmber,
-                            modifier = Modifier.size(12.dp)
+                            modifier = Modifier.size(11.dp)
                         )
                         Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = "REROUTED AROUND HAZARD",
-                            fontSize = 9.sp,
+                            text = "REROUTED",
+                            fontSize = 8.5.sp,
                             fontWeight = FontWeight.Black,
-                            color = WarningAmber
+                            color = WarningAmber,
+                            maxLines = 1
                         )
                     }
                 } else {
                     Text(
                         text = "CRS 900x1000",
-                        fontSize = 10.sp,
+                        fontSize = 9.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextSecondary
+                        color = TextSecondary,
+                        maxLines = 1
                     )
                 }
             }

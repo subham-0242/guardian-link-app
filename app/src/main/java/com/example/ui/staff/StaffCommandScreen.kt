@@ -518,28 +518,41 @@ fun StaffCommandScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.weight(1f, fill = false),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Map,
                                 contentDescription = null,
                                 tint = WarningAmber,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "TACTICAL FLOOR PLAN & EVACUATION MAP",
-                                fontSize = 13.sp,
+                                text = "TACTICAL FLOOR PLAN",
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = WarningAmber
+                                color = WarningAmber,
+                                maxLines = 1
                             )
                         }
 
-                        Text(
-                            text = "Floor 4 • Inspect RM $selectedRoomId",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TacticalCyan
-                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(TacticalCyan.copy(alpha = 0.15f))
+                                .border(1.dp, TacticalCyan.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "FL 4 • RM $selectedRoomId",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TacticalCyan,
+                                maxLines = 1
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -787,10 +800,13 @@ fun StaffCommandScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.weight(1f, fill = false),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Box(
                                 modifier = Modifier
-                                    .size(32.dp)
+                                    .size(30.dp)
                                     .clip(CircleShape)
                                     .background(CrisisRed.copy(alpha = 0.2f)),
                                 contentAlignment = Alignment.Center
@@ -799,74 +815,78 @@ fun StaffCommandScreen(
                                     imageVector = Icons.Default.Campaign,
                                     contentDescription = null,
                                     tint = CrisisRed,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    text = "MASS BROADCAST / PA SYSTEM",
-                                    fontSize = 13.sp,
+                                    text = "MASS BROADCAST / PA",
+                                    fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Black,
-                                    color = CrisisRed
+                                    color = CrisisRed,
+                                    maxLines = 1
                                 )
                                 Text(
-                                    text = "ONE-TO-MANY EMERGENCY ALERT TRANSMITTER",
-                                    fontSize = 9.5.sp,
+                                    text = "EMERGENCY ALERT TRANSMITTER",
+                                    fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = TextSecondary
+                                    color = TextSecondary,
+                                    maxLines = 1
                                 )
                             }
                         }
 
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(CrisisRed)
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .padding(horizontal = 7.dp, vertical = 3.dp)
                         ) {
                             Text(
-                                text = "INCIDENT COMMAND",
-                                fontSize = 9.sp,
+                                text = "INCIDENT CMD",
+                                fontSize = 8.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // Target Floor Selection
                     Text(
-                        text = "1. SELECT TARGET RECIPIENTS / FLOOR SCOPE:",
+                        text = "1. SELECT TARGET FLOOR SCOPE:",
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = TacticalCyan
                     )
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    // Floor Scope Selector Chips
+                    // Floor Scope Selector Chips (Single-line compact mobile layout)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         // Entire Building
                         val isAllSelected = selectedTargetFloor == null
                         Box(
                             modifier = Modifier
-                                .weight(1.5f)
-                                .clip(RoundedCornerShape(10.dp))
+                                .weight(1.3f)
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(if (isAllSelected) CrisisRed else GlassSurface)
-                                .border(1.dp, if (isAllSelected) CrisisRed else GlassBorder, RoundedCornerShape(10.dp))
+                                .border(1.dp, if (isAllSelected) CrisisRed else GlassBorder, RoundedCornerShape(8.dp))
                                 .clickable { selectedTargetFloor = null }
-                                .padding(vertical = 8.dp),
+                                .padding(vertical = 7.dp, horizontal = 2.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "🏢 ALL FLOORS",
-                                fontSize = 11.sp,
+                                text = "🏢 ALL",
+                                fontSize = 10.sp,
                                 fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isAllSelected) Color.White else TextPrimary
+                                color = if (isAllSelected) Color.White else TextPrimary,
+                                maxLines = 1
                             )
                         }
 
@@ -877,7 +897,7 @@ fun StaffCommandScreen(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .clip(RoundedCornerShape(8.dp))
                                     .background(
                                         when {
                                             isFloorSelected -> if (isFloor4) CrisisRed else WarningAmber
@@ -892,64 +912,36 @@ fun StaffCommandScreen(
                                             isFloor4 -> CrisisRed.copy(alpha = 0.5f)
                                             else -> GlassBorder
                                         },
-                                        RoundedCornerShape(10.dp)
+                                        RoundedCornerShape(8.dp)
                                     )
                                     .clickable { selectedTargetFloor = floorNum }
-                                    .padding(vertical = 8.dp),
+                                    .padding(vertical = 7.dp, horizontal = 2.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = if (isFloor4) "FL 4 🚨" else "FL $floorNum",
-                                    fontSize = 11.sp,
+                                    fontSize = 10.sp,
                                     fontWeight = if (isFloorSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isFloorSelected) Color.White else TextPrimary
+                                    color = if (isFloorSelected) Color.White else TextPrimary,
+                                    maxLines = 1
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                    // Alert Mode (Audio PA + Push vs Text Only) & Priority
+                    // Priority Level Selector (3 equal single-line buttons)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // Audio PA Toggle
-                        Box(
-                            modifier = Modifier
-                                .weight(1.2f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (isAudioPaEnabled) TacticalCyan.copy(alpha = 0.2f) else GlassSurface)
-                                .border(1.dp, if (isAudioPaEnabled) TacticalCyan else GlassBorder, RoundedCornerShape(10.dp))
-                                .clickable { isAudioPaEnabled = !isAudioPaEnabled }
-                                .padding(horizontal = 8.dp, vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = if (isAudioPaEnabled) Icons.Default.VolumeUp else Icons.Default.NotificationsActive,
-                                    contentDescription = null,
-                                    tint = if (isAudioPaEnabled) TacticalCyan else TextSecondary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = if (isAudioPaEnabled) "🔊 AUDIO PA: ON" else "🔇 TEXT ONLY",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isAudioPaEnabled) TacticalCyan else TextSecondary
-                                )
-                            }
-                        }
-
-                        // Priority Level Selector
                         listOf("critical" to "🔴 CRITICAL", "warning" to "🟠 URGENT", "advisory" to "🟡 ADVISORY").forEach { (priKey, priLabel) ->
                             val isPriSelected = broadcastPriority == priKey
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .clip(RoundedCornerShape(8.dp))
                                     .background(
                                         if (isPriSelected) {
                                             when (priKey) {
@@ -968,19 +960,54 @@ fun StaffCommandScreen(
                                                 else -> SafeGreen
                                             }
                                         } else GlassBorder,
-                                        RoundedCornerShape(10.dp)
+                                        RoundedCornerShape(8.dp)
                                     )
                                     .clickable { broadcastPriority = priKey }
-                                    .padding(vertical = 8.dp),
+                                    .padding(vertical = 7.dp, horizontal = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = priLabel,
                                     fontSize = 10.sp,
                                     fontWeight = if (isPriSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isPriSelected) Color.White else TextSecondary
+                                    color = if (isPriSelected) Color.White else TextSecondary,
+                                    maxLines = 1
                                 )
                             }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Audio PA Broadcast Mode Toggle (Clean full-width single-line control)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isAudioPaEnabled) TacticalCyan.copy(alpha = 0.15f) else GlassSurface)
+                            .border(1.dp, if (isAudioPaEnabled) TacticalCyan else GlassBorder, RoundedCornerShape(8.dp))
+                            .clickable { isAudioPaEnabled = !isAudioPaEnabled }
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isAudioPaEnabled) Icons.Default.VolumeUp else Icons.Default.NotificationsActive,
+                                contentDescription = null,
+                                tint = if (isAudioPaEnabled) TacticalCyan else TextSecondary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isAudioPaEnabled) "AUDIO PA SIREN & VOICE BROADCAST: ACTIVE" else "SILENT PUSH & TEXT ALERT (PA MUTED)",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isAudioPaEnabled) TacticalCyan else TextSecondary,
+                                maxLines = 1
+                            )
                         }
                     }
 
